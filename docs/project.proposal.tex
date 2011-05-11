@@ -1,0 +1,97 @@
+\documentclass{acm_proc_article-sp}
+\usepackage{url}
+
+\begin{document}
+
+\title{Secure Shell for NDN}
+\numberofauthors{2}
+\author{
+\alignauthor
+Jonathan Chu\\
+    \email{jrchu@cs.ucla.edu}
+\alignauthor
+Ravi Srinivas\\
+    \email{rravisrinivas@gmail.com}
+}
+
+\maketitle
+
+\begin{abstract}
+
+
+
+\end{abstract}
+
+\section{Introduction}
+
+NDN focuses on content expression and delivery and abstract away content hosts and datastores. However, there are still many applications that still require end-to-end communication with explicit hosts. Network management, for example, requires the ability to directly communicate to network hosts such as routers and servers in order to configure individual host settings. Existing network management tools such as Telnet, SSH, FTP rely heavily on the TCP/IP protocol. These tools are requirements for system and network administrators for host management. With the advent of NDN, such tools are still applicable. Colorado State University has existing network monitoring projects for an NDN architecture and are interested in developing network management tools as well. We will explore one tool, SSH, and re-apply the protocol and application to work on NDN to demonstrate the feasibility of re-tailoring such network management tools for use on an NDN architecture.
+
+\section{SSH Architecture and Functionality}
+
+SSH is a popular unix-based network protocol that is used for obtaining remote shell access in an authenticated and encryption secured mechanism. SSH is typically used to log into a remote machine and execute commands and programs, but it also supports tunneling, forwarding TCP ports and X11 connections; it can also transfer files using the associated SFTP or SCP protocol. It is often used by network operators and system administrators as a remote console to install, configure, and maintain network devices and servers without the requirement of physical presence at the terminal.
+
+SSH uses a client / server model to communicate and public key cryptography to ensure security. Both the client and the server implementations, such as OpenSSH and dropbear, are commonly distributed in many standard operating systems such as GNU/UNIX based distributions, Mac OS X, OpenBSD, FreeBSD etc. 
+
+\section{Differences between TCP/IP and NDN}
+
+We have identified the following differences between the use of an NDN architecture and TCP/IP would change SSH:
+\begin{description}
+    \item[Host Identification] 
+    NDN would replace IP’s address and port name with NDN names which can easily support the idea of host and application.
+
+    \item[OpenSSL channel encryption] 
+    NDN no longer requires the communication channel to be encrypted via OpenSSL. Both the name and the content chunks can be encrypted on the application level without compromising the communication. This may possibility replace the host key exchange protocol that SSH uses to secure the channel.
+
+    \item[Real-time communication] 
+    While NDN might appear not to support TCP/IP’s two-way communication, it is fairly trivial to use NDN names to bootstrap two-way communication in the same way TCP/IP does to create two TCP/IP channels.
+\end{description}
+
+Unfortunately, we cannot rely on some of NDN’s tauted features like caching.
+
+\section{Project Goals}
+
+We have identified the following goals that we would like to accomplish that can be done within the semester. It is reasonable to exclude many of the extra features SSH provides and focus on the core functionality of SSH.
+
+We will:
+\begin{itemize}
+    \item Provide basic plaintext user authentication
+    \item Support non-interactive sessions (and interactive sessions if time permits)
+    \item Support multiple simultaneous SSH sessions
+\end{itemize}
+These are the most fundamental features that an SSH application should support. We are optionally include interactive sessions because it may require much more extra work to implement.
+
+We will not implement:
+\begin{itemize}
+    \item Strong encryption
+    \item SSH Binary Packet Protocol
+    \item Key Re-exchange
+    \item Proxy and Forwarding
+\end{itemize}
+
+These excluded features are related to improving data transfer, providing additional security, supporting extra features, all of which are not needed to demonstrate the feasibility of the application.
+
+\section{Schedule}
+
+\begin{description}
+    \item[Week 4] Install and play with CCNx
+    \item[Week 5] Initial research on SSH protocol and existing NDN applications. Determine what parts of the SSH protocol will be implemented
+    \item[Week 6] Formulate the NamedSSH protocol specifications and finalize the architecture and communication details. Build a basic 2 way communication framework
+    \item[Week 7] Build the NamedSSH server application and test its functioning using local connections
+    \item[Week 8] Build the SSH client application and test basic functionality of the system
+    \item[Week 9] Fine tune the system, Add features and test completed application
+    \item[Week 10] Evaluate the system and write the project report and presentation
+\end{description}
+
+\nocite{named-data}
+\nocite{rfc4250}
+\nocite{rfc4251}
+\nocite{rfc4252}
+\nocite{rfc4253}
+\nocite{rfc4254}
+\nocite{rfc4432}
+\nocite{openssh}
+
+\bibliography{project.proposal}
+\bibliographystyle{plain}
+
+\end{document}

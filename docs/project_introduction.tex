@@ -1,0 +1,103 @@
+\documentclass[14pt]{beamer}
+
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usetheme{Warsaw}
+\usecolortheme{lily}
+
+\title{An SSH Implementation for NDN}
+\author{Jonathan Chu \\ Ravi Srinivas Ranganathan}
+\date{CS217B Spring 2011}
+
+\begin{document}
+
+\begin{frame}
+\maketitle
+\end{frame}
+
+\begin{frame}
+    \frametitle{Outline}
+    \begin{itemize}
+        \item Motivation
+        \item SSH - Existing Implementation
+        \item IP versus NDN implementation
+        \item Project Goals
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Motivation}
+    \begin{itemize}
+        \item NDN focuses on content and content-centric applications
+        \item Network Management is host centric and required host-to-host explicit communication
+        \item Examples of tools include Telnet, SSH, FTP
+        \item An NDN version of these tools are useful for network operators and system administrators
+        \item Enables us to understand the requirements and challenges for building applications utilizing NDN
+        \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Secure Shell}
+    \begin{itemize}
+        \item Secure remote access application
+        \item Typically used to obtain console access to a remote machine and execute commands and programs
+        \item Supported by all *NIX based machines
+        \item Implementations SSH, OSSH, OpenSSH, Dropbear
+    \end{itemize}
+
+    Basic functionality:
+    \begin{itemize}
+        \item Client initiates connection with server
+        \item Client manually verifies server via key fingerprints
+        \item Client-server exchange session keys to encrypt conversation
+        \item Client-server converse
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{IP versus NDN Implementation}
+    \begin{description}
+        \item[Host Identification] NDN names instead of IP address and port number
+        \item[Channel Encryption] Communication channel does not need to be encrypted. Name and content chunks remain encrypted at application level. SSH host key exchange protocol may be obsolete.
+        \item[Two-way communciation] Utilize alternating interest/data exchanges in place of TCP's byte stream oriented approach
+    \end{description}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Project Goals}
+    We will implement:
+    \begin{itemize}
+        \item Basic plaintext user authentication
+        \item Non-interactive sessions (execute remote programs like 'ls')
+        \item Multiple simultaenous SSH sessions
+    \end{itemize}
+
+    We will not implement:
+    \begin{itemize}
+        \item Strong encryption (AES, Blowfish, etc)
+        \item SSH Binary Packet Protocol (compression, etc)
+        \item Key Re-exchange
+        \item Proxy and Forwarding
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Future Work}
+    \begin{itemize}
+        \item Incorporate approaches for key exchange over NDN
+        \item Extra SSH features previously mentioned
+        \item GUI / Window based client like Putty
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{References}
+    \begin{itemize}
+        \item Colorado State University. Named Data Network. http://www.named-data.net
+        \item OpenSSH. http://www.openssh.com
+        \item RFC 4250-4254, 4432
+    \end{itemize}
+\end{frame}
+
+\end{document}
+
