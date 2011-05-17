@@ -18,7 +18,7 @@ JAVA=$JAVA_HOME/bin/java
 SCRIPT_DIR=`dirname $0`  # note this is relative path
 CMD_NAME=`basename $0` 
 CCN_HOME=${CCN_HOME:-$SCRIPT_DIR}
-if [ ! -f "$CCN_HOME/$JAR_FILE" ]
+if [ ! -f "$CCN_HOME/lib/$JAR_FILE" ]
 then
     if [ -f "$SCRIPT_DIR/../lib/$JAR_FILE" ] 
     then
