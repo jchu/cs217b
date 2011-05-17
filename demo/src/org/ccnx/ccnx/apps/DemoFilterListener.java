@@ -1,4 +1,4 @@
-package org.ccnx.ccn.apps.demoserverfilterlistenter;
+package org.ccnx.ccn.apps.demoserver;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -25,15 +25,15 @@ import org.ccnx.ccn.protocol.ExcludeComponent;
 import org.ccnx.ccn.protocol.Interest;
 import org.ccnx.ccn.protocol.MalformedContentNameStringException;
 
-public class DemoServerFilterListener implements CCNFilterListener {
+public class DemoFilterListener implements CCNFilterListener {
 
     protected ContentName _namespace;
     protected String _namespacestr;
 
     protected CCNHandle _handle;
-    protected ContetName _serverName = null;
+    protected ContentName _serverName = null;
 
-    public DemoServerFilterListener(String mountpoint, CCNHandle handle) throws MalformedContentNameStringException {
+    public DemoFilterListener(String mountpoint, CCNHandle handle) throws MalformedContentNameStringException {
         _namespace = ContentName.fromURI(mountpoint);
         _namespacestr = mountpoint;
 
@@ -47,7 +47,8 @@ public class DemoServerFilterListener implements CCNFilterListener {
         _handle.registerFilter(_namespace,this);
     }
 
-    public boolean handleInterest(Interset interset) {
+    public boolean handleInterest(Interest interest) {
         Log.info("DemoServer got new interest: {0}", interest);
+        return true;
     }
 }
