@@ -54,8 +54,6 @@ public final class DemoServer implements Runnable {
 
     public void run() {
         while(true) {
-            System.out.print('.');
-            
             /*
             if( _readString.isSaved() ) {
                 // Received an interest from a new client
