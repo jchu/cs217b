@@ -110,7 +110,7 @@ setup(int argc, char** argv) {
     // CCN Handle
     sys->ccn = ccn_create();
     if( sys->ccn == NULL || ccn_connect(sys->ccn,NULL) == -1 ) {
-        message_on_ccnd_connect_failure();
+        message_on_ccnd_connect_failure(sys->ccn);
         ccn_destroy(sys->ccn);
         exit(retvalue);
     }
@@ -118,14 +118,14 @@ setup(int argc, char** argv) {
     // Publish server mountpoint
     sys->mountpoint = ccn_charbuf_create();
     if( sys->mountpoint == NULL ) {
-        message_on_charbuf_nomem("mountpoint");
+        message_on_charbuf_nomem(sys->ccn,"mountpoint");
         exit(retvalue);
     }
 
     char* location = argv[1];
     retvalue = ccn_name_from_uri(sys->mountpoint,location);
     if( retvalue < 0 ) {
-        message_on_name_failure("server mountpoint");
+        message_on_name_failure(sys->ccn,"server mountpoint");
         exit(retvalue);
     }
 
