@@ -1,6 +1,6 @@
 
 
-
+CFLAGS=-g -Wall
 CCNINCDIR = /home/milki/git/ccnx/include/ccn
 CCNLIBDIR = /home/milki/git/ccnx/csrc/lib
 LDLIBS = -L$(CCNLIBDIR) -lccn -lcrypto
@@ -19,3 +19,6 @@ server: server.o
 server.o: $(CCNINCDIR)/ccn.h $(CCNINCDIR)/charbuf.h \
 	$(CCNINCDIR)/uri.h $(CCNINCDIR)/header.h \
 	messages.h
+
+clean:
+	rm $(PROGRAMS) server.o
