@@ -1,4 +1,8 @@
-
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 /********************************
  * CCNx specific headers
@@ -7,6 +11,8 @@
 #include <ccn/charbuf.h>
 #include <ccn/uri.h>
 #include <ccn/header.h>
+
+#include "messages.h"
 
 /*******************************
  * CCNx specific constants
@@ -31,7 +37,14 @@ handleNewClient(struct ccn_closure *selfp,
         enum ccn_upcall_kind kind,
         struct ccn_upcall_info *info);
 
-ccn_sys_t *ccn_sys;
+typedef struct ccn_sys_t *ccn_sys;
+
+static struct ccn_closure newClientAction = {
+    .p = &handleNewClient
+};
+
+ccn_sys sys;
+char* mountpoint;
 
 /*
  * handleNewClient
@@ -45,7 +58,9 @@ enum ccn_upcall_res
 handleNewClient(struct ccn_closure *selfp,
         enum ccn_upcall_kind kind,
         struct ccn_upcall_info *info) {
+    int result;
 
+    printf("Got interest matching %d components, kind = %d\n", info->matched_comps, kind);
     // Sanity check
     switch (kind) {
         case CCN_UPCALL_INTEREST:
@@ -53,48 +68,79 @@ handleNewClient(struct ccn_closure *selfp,
             break;
         default:
             // Only deal with interest
-            return CCN_UPCALL_RESTUL_ERR;
+            return CCN_UPCALL_RESULT_ERR;
     }
 
-    // Interpret interest name for client
-    struct ccn_parsed_interest * pi = info->pi;
+    // REFER TO: voccn/libeXosip2/src/eXtl_ccn.c:346
 
-    // Get name is encrypted to server private key and must be decrypted
+    // Parse interest name
+    // Expecting /domain/clinet/<init msg>
+    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps + 1, "client" )  == 0 ) {
+
+        const unsigned char* msg;
+        size_t msg_size;
+        result = ccn_name_comp_get(info->interest_ccnb, info->interest_comps,
+                info->matched_comps + 2, &msg, &msg_size );
+        if( result <= 0 ) {
+            // Interest with unrecongized name format
+            return CCN_UPCALL_RESULT_ERR;
+        }
+
+        printf("Received client message (len%d)\n",msg_lenth);
+
+        // Respond with SSH version number
+        //ccn_put(info->h, contents, size);
+        // return CCN_IPCALL_RESULT_INTEREST_CONSUMED
+
+        // Send new interest to initiate user authentication
+    
+
+    } else {
+        // Interest with unrecongized name format
+        return CCN_UPCALL_RESULT_ERR;
+    }
 
 
-    // Respond with SSH version number
-    ccn_put(info->h, contents, size);
-
-    // Send new interest to initiate user authentication
+    return CCN_UPCALL_RESULT_OK;
 }
 
 void
-setup() {
+setup(int argc, char** argv) {
     int retvalue = EXIT_FAILURE;
     // CCN Handle
-    ccn_sys->ccn = ccn_create();
-    if( ccn_sys->ccn == NULL || ccn_connect(ccn_sys->ccn,NULL) == -1 ) {
+    sys->ccn = ccn_create();
+    if( sys->ccn == NULL || ccn_connect(sys->ccn,NULL) == -1 ) {
         message_on_ccnd_connect_failure();
-        exit(retvalue)
+        ccn_destroy(sys->ccn);
+        exit(retvalue);
     }
 
     // Publish server mountpoint
-    ccn_sys->mountpoint = ccn_charbuf_create();
-    if( ccn_sys->mountpoint == NULL ) {
+    sys->mountpoint = ccn_charbuf_create();
+    if( sys->mountpoint == NULL ) {
         message_on_charbuf_nomem("mountpoint");
         exit(retvalue);
     }
-    // TODO:location
-    retvalue = ccn_name_from_uri(ccn_sys->mountpoint,location);
+
+    char* location = argv[1];
+    retvalue = ccn_name_from_uri(sys->mountpoint,location);
     if( retvalue < 0 ) {
         message_on_name_failure("server mountpoint");
         exit(retvalue);
     }
 
-    retvalue = ccn_set_interest_filter(ccn_sys->ccn,ccn_sys->mountpoint,
-            ccn_sys->newClient);
+    sys->newClient = &newClientAction;
+    retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,
+            sys->newClient);
     if( retvalue < 0 ) {
-        message_on_route_failure();
+        //message_on_route_failure();
         exit(retvalue);
     }
+}
+
+int
+main(int argc, char** argv) {
+    sys = (ccn_sys) malloc(sizeof(struct ccn_sys_t));
+    setup(argc,argv);
+    ccn_run(sys->ccn,-1);
 }
