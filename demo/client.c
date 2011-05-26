@@ -36,6 +36,10 @@ handleServer(struct ccn_closure *selfp,
         enum ccn_upcall_kind kind,
         struct ccn_upcall_info *info);
 
+static struct ccn_closure serverAction = {
+    .p = &handleServer
+};
+
 struct interest_header_t {
 };
 
@@ -148,6 +152,7 @@ setup(int argc, char** argv) {
     client_id = rand();
     ccn_name_append_numeric(sys->mountpoint,CCN_MARKER_NONE,client_id);
 
+    sys->responseHandler = &serverAction;
     retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,
             sys->responseHandler);
     if( retvalue < 0 ) {
