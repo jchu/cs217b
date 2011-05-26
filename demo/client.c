@@ -66,7 +66,7 @@ handleServer(struct ccn_closure *selfp,
     struct ccn_indexbuf *ic = NULL;
     int retvalue;
 
-    printf("Got interest matching %d components, kind = %d\n", info->matced_comps, kind);
+    printf("Got interest matching %d components, kind = %d\n", info->matched_comps, kind);
 
     // Sanity check
     switch (kind) {
@@ -120,10 +120,12 @@ make_interest_template()
 void
 setup(int argc, char** argv) {
     int retvalue = EXIT_FAILURE;
+
     // CCN Handle
     sys->ccn = ccn_create();
     if( sys->ccn == NULL || ccn_connect(sys->ccn,NULL) == -1 ) {
         message_on_ccnd_connect_failure(sys->ccn);
+        ccn_destroy(&(sys->ccn));
         exit(retvalue);
     }
 
@@ -155,12 +157,12 @@ setup(int argc, char** argv) {
 }
 
 /*
- * connect()
+ * remote_connect()
  *
  * Send initial interest to server
  */
 void
-connect(int argc, char** argv) {
+remote_connect(int argc, char** argv) {
     int retvalue;
     struct ccn_charbuf *templ = NULL;
     struct interest_header_t *header = NULL;
@@ -198,7 +200,7 @@ int main(int argc, char** argv) {
     sys = (ccn_sys) malloc(sizeof(struct ccn_sys_t));
     srand(time(NULL));
     setup(argc,argv);
-    connect(argc,argv);
+    remote_connect(argc,argv);
     ccn_run(sys->ccn,-1);
     
     return 0;
