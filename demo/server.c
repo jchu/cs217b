@@ -74,44 +74,123 @@ handleNewClient(struct ccn_closure *selfp,
     // REFER TO: voccn/libeXosip2/src/eXtl_ccn.c:346
 
     // Parse interest name
-    // Expecting /domain/clinet/<init msg>
-    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps + 1, "client" )  == 0 ) {
+    // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
+    // TODO: /domain/ should be configurable length
+    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps -1 , "client" )  == 0 ) {
 
         const unsigned char* msg;
         size_t msg_size;
+
+        // Ensure there is nothing after init msg
         result = ccn_name_comp_get(info->interest_ccnb, info->interest_comps,
-                info->matched_comps + 2, &msg, &msg_size );
+                info->matched_comps + 3, &msg, &msg_size );
         if( result <= 0 ) {
             // Interest with unrecongized name format
+            printf("Unrecognized interest name. Missing client path.\n");
             return CCN_UPCALL_RESULT_ERR;
         }
 
-        printf("Received client message (len%d)\n",msg_lenth);
+        printf("Received client message (len %d)\n",msg_size);
+
+        // TODO: Handle encrypted init
+        // result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(),
+        // key_block, key_block_length,
+        // &key_buffer, &key_len);
+        //
+        // result = ccn_verify_mac
+        // result = ccn_decrypt
+
+        // TODO: Use client path when forking process
+        // NOTE: Assuming  path: /domain/ssh/id
+        struct ccn_charbuf *client_path = ccn_charbuf_create();
+        ccn_name_init(client_path);
+        ccn_name_append_components(client_path, info->interest_ccnb,
+                info->interest_comps->buf[3], info->interest_comps->buf[6]);
 
         // Respond with SSH version number
-        //ccn_put(info->h, contents, size);
-        // return CCN_IPCALL_RESULT_INTEREST_CONSUMED
+        /* For signing
+        struct ccn_charbuf *signed_info, *name, *content;
+        signed_info = ccn_charbuf_create();
+        result = ccn_signed_info_create(signed_info,
+                get_my_publisher_key_id(),
+                get_my_publisher_key_id_length,
+                NULL,
+                CCN_CONTENT_DATA,
+                -1
+                NULL,
+                NUL);
+        if( result < 0 ) {
+            // TODO: error
+        }
+        */
 
-        // Send new interest to initiate user authentication
-    
+        printf("Sending back message.\n",msg_size);
+        //struct ccn_charbuf *name = ccn_charbuf_create();
+        struct ccn_charbuf *content = ccn_charbuf_create();
+        ccn_charbuf_append_string(content, "SSH-2.0-NDN"); // TODO: use real content
+        //ccn_encode_ContentObject(content, client_path, signed_info,
+        //        "",0,NULL, get_my_private_key());
+        ccn_put(info->h, content->buf, content->length);
 
+        //ccn_charbuf_destroy(&signed_info);
+        ccn_charbuf_destroy(&client_path);
+        ccn_charbuf_destroy(&content);
+
+
+        // TODO: forked process send new interest to initiate user authentication?
+
+        return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
     } else {
         // Interest with unrecongized name format
+        printf("Unrecognized interest name\n");
         return CCN_UPCALL_RESULT_ERR;
     }
 
 
     return CCN_UPCALL_RESULT_OK;
 }
+/*
+static const struct ccn_pkey *
+get_my_private_key(void)
+{
+    if (cached_keystore == NULL) init_cached_keystore();
+    return (ccn_keystore_private_key(cached_keystore));
+}
+
+static const struct ccn_certificate *
+get_my_certificate(void)
+{
+    if (cached_keystore == NULL) init_cached_keystore();
+    return (ccn_keystore_certificate(cached_keystore));
+}
+
+static const unsigned char *
+get_my_publisher_key_id(void)
+{
+    if (cached_keystore == NULL) init_cached_keystore();
+    return (ccn_keystore_public_key_digest(cached_keystore));
+}
+
+
+static ssize_t
+get_my_publisher_key_id_length(void)
+{
+    if (cached_keystore == NULL) init_cached_keystore();
+    return (ccn_keystore_public_key_digest_length(cached_keystore));
+}
+*/
 
 void
 setup(int argc, char** argv) {
     int retvalue = EXIT_FAILURE;
+
+    // TODO: handle arguments properly
+
     // CCN Handle
     sys->ccn = ccn_create();
     if( sys->ccn == NULL || ccn_connect(sys->ccn,NULL) == -1 ) {
         message_on_ccnd_connect_failure(sys->ccn);
-        ccn_destroy(sys->ccn);
+        ccn_destroy(&(sys->ccn));
         exit(retvalue);
     }
 
@@ -143,4 +222,6 @@ main(int argc, char** argv) {
     sys = (ccn_sys) malloc(sizeof(struct ccn_sys_t));
     setup(argc,argv);
     ccn_run(sys->ccn,-1);
+
+    return 0;
 }
