@@ -11,17 +11,21 @@
 
 static inline void
 message_on_ccnd_connect_failure(struct ccn* ccn) {
-    cnn_perror(ccn,"Failure to connect to ccnd\n");
+    ccn_perror(ccn,"Failure to connect to ccnd\n");
 }
 
 static inline void
-message_on_charbuf_nomem(struct ccn*, char * var) {
-    ccn_perror(sys->ccn,"Failure to allocate %s\n",var);
+message_on_charbuf_nomem(struct ccn* ccn, char * var) {
+    ccn_perror(ccn,"Failure to allocate charbuf:");
+    ccn_perror(ccn,var);
+    ccn_perror(ccn,"\n");
 }
 
 static inline void
-message_on_name_failure(struct ccn*, char * var) {
-    ccn_perror(sys->ccn,"Could not resolve %s\n",var);
+message_on_name_failure(struct ccn* ccn, char * var) {
+    ccn_perror(ccn,"Could not resolve ccn name:");
+    ccn_perror(ccn,var);
+    ccn_perror(ccn,"\n");
 }
 
 #endif /* _messages_h_ */
