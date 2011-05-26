@@ -29,6 +29,16 @@ message_on_name_failure(struct ccn* ccn, char * var) {
 }
 
 static inline void
+message_on_route_failure(struct ccn* ccn) {
+    ccn_perror(ccn,"Could not setup interest filter");
+}
+
+static inline void
+message_on_new_client(struct ccn* ccn) {
+    ccn_perror(ccn,"Failed to understand server");
+}
+
+static inline void
 message_on_send_failure(struct ccn* ccn) {
     ccn_perror(ccn,"Failed to send data");
 }

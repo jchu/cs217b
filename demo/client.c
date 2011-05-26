@@ -1,4 +1,8 @@
-
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 /********************************
  * CCNx specific headers
@@ -7,6 +11,8 @@
 #include <ccn/charbuf.h>
 #include <ccn/uri.h>
 #include <ccn/header.h>
+
+#include "messages.h"
 
 /*******************************
  * CCNx specific constants
@@ -20,7 +26,7 @@
  *****************************/
 struct ccn_sys_t {
     struct ccn *ccn;
-    struct ccn_closure *reponseHandler; // Handle server interests
+    struct ccn_closure *responseHandler; // Handle server interests
     struct ccn_charbuf *mountpoint; // Server response target
     struct ccn_charbuf *interest_template;
 };
@@ -33,7 +39,9 @@ handleServer(struct ccn_closure *selfp,
 struct interest_header_t {
 };
 
-ccn_sys_t *ccn_sys;
+typedef struct ccn_sys_t *ccn_sys;
+
+ccn_sys sys;
 
 int client_id;
 
@@ -58,7 +66,8 @@ handleServer(struct ccn_closure *selfp,
     struct ccn_indexbuf *ic = NULL;
     int retvalue;
 
-    // TODO: Does a server need this?
+    printf("Got interest matching %d components, kind = %d\n", info->matced_comps, kind);
+
     // Sanity check
     switch (kind) {
         case CCN_UPCALL_FINAL:
@@ -84,41 +93,63 @@ handleServer(struct ccn_closure *selfp,
     ic = info->interest_comps;
     retvalue = ccn_content_get_value(ccnb, ccnb_size, info->pco, &data, &data_size);
     if (retvalue < 0 ) {
-        message_on_new_client();
+        message_on_new_client(sys->ccn);
         exit(retvalue);
     }
 
     // Interpret content
+
+    return CCN_UPCALL_RESULT_OK;
+}
+
+struct ccn_charbuf *
+make_interest_template()
+{
+    struct ccn_charbuf *templ = ccn_charbuf_create();
+    ccn_charbuf_append_tt(templ, CCN_DTAG_Interest, CCN_DTAG); /* <Interest> */
+    ccn_charbuf_append_tt(templ, CCN_DTAG_Name, CCN_DTAG); /* <Name> */
+    ccn_charbuf_append_closer(templ); /* </Name> */
+
+    // TODO: consider min/max suffix components
+    // TODO: AnswerOriginKind
+    
+    ccn_charbuf_append_closer(templ); /* </Interest> */
+    return templ;
 }
 
 void
-setup() {
+setup(int argc, char** argv) {
     int retvalue = EXIT_FAILURE;
     // CCN Handle
-    ccn_sys->ccn = ccn_create();
-    if( ccn_sys->ccn == NULL || ccn_connect(ccn_sys->ccn,NULL) == -1 ) {
-        message_on_ccnd_connect_failure();
-        exit(retvalue)
+    sys->ccn = ccn_create();
+    if( sys->ccn == NULL || ccn_connect(sys->ccn,NULL) == -1 ) {
+        message_on_ccnd_connect_failure(sys->ccn);
+        exit(retvalue);
     }
 
     // Publish client mountpoint
-    ccn_sys->mountpoint = ccn_charbuf_create();
-    if( ccn_sys->mountpoint == NULL ) {
-        message_on_charbuf_nomem("mountpoint");
+    sys->mountpoint = ccn_charbuf_create();
+    if( sys->mountpoint == NULL ) {
+        message_on_charbuf_nomem(sys->ccn,"mountpoint");
         exit(retvalue);
     }
-    // TODO:location
+    // TODO: auto generate local domain
     // Take from input + random session id
-    retvalue = ccn_name_from_uri(ccn_sys->mountpoint,location);
+    char* client_location = argv[1];
+    retvalue = ccn_name_from_uri(sys->mountpoint,client_location);
     if( retvalue < 0 ) {
-        message_on_name_failure("server mountpoint");
+        message_on_name_failure(sys->ccn,"server mountpoint");
         exit(retvalue);
     }
+    ccn_name_append_str(sys->mountpoint,"ssh");
 
-    retvalue = ccn_set_interest_filter(ccn_sys->ccn,ccn_sys->mountpoint,
-            ccn_sys->responseHandler);
+    client_id = rand();
+    ccn_name_append_numeric(sys->mountpoint,CCN_MARKER_NONE,client_id);
+
+    retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,
+            sys->responseHandler);
     if( retvalue < 0 ) {
-        message_on_route_failure();
+        message_on_route_failure(sys->ccn);
         exit(retvalue);
     }
 }
@@ -129,7 +160,7 @@ setup() {
  * Send initial interest to server
  */
 void
-connect() {
+connect(int argc, char** argv) {
     int retvalue;
     struct ccn_charbuf *templ = NULL;
     struct interest_header_t *header = NULL;
@@ -142,32 +173,31 @@ connect() {
     // TODO:location
     retvalue = ccn_name_from_uri(server_name,server_location);
     if( retvalue < 0 ) {
-        message_on_name_failure("server name");
+        message_on_name_failure(sys->ccn,"server name");
         exit(retvalue);
     }
-    ccn_name_append_str(client_name,"ssh");
+    ccn_name_append_str(server_name,"ssh");
 
     // Add return path and init message to server name
     ccn_name_append_str(server_name,client_location);
-    ccn_name_append_str(client_name,"ssh");
-
-    client_id = rand();
-    ccn_name_append_numeric(client_name,CCN_MARKER_NONE,client_id);
+    ccn_name_append_str(server_name,"ssh");
+    ccn_name_append_numeric(server_name,CCN_MARKER_NONE,client_id);
     // Init message
-
 
     // Build interest
     templ = make_interest_template(header,NULL);
     
-    ccn_express_interest(ccn_sys->ccn, server_name, ccn_sys->responseHandler, templ);
+    printf("Expressing interest to server\n");
+    ccn_express_interest(sys->ccn, server_name, sys->responseHandler, templ);
 
     ccn_charbuf_destroy(&templ);
     ccn_charbuf_destroy(&server_name);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char** argv) {
     sys = (ccn_sys) malloc(sizeof(struct ccn_sys_t));
-    srand(time(NULL))
+    srand(time(NULL));
+    setup(argc,argv);
     connect(argc,argv);
     ccn_run(sys->ccn,-1);
     
