@@ -90,7 +90,7 @@ handleNewClient(struct ccn_closure *selfp,
             return CCN_UPCALL_RESULT_ERR;
         }
 
-        printf("Received client message (len %u)\n",msg_size);
+        //printf("Received client message (len %u)\n",msg_size);
 
         // TODO: Handle encrypted init
         // result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(),
@@ -124,22 +124,24 @@ handleNewClient(struct ccn_closure *selfp,
         }
         */
 
+        // TODO: forked process send new interest to initiate user authentication?
         printf("Sending back message.\n");
         //struct ccn_charbuf *name = ccn_charbuf_create();
         struct ccn_charbuf *content = ccn_charbuf_create();
         ccn_charbuf_append_string(content, "SSH-2.0-NDN"); // TODO: use real content
         //ccn_encode_ContentObject(content, client_path, signed_info,
         //        "",0,NULL, get_my_private_key());
-        ccn_put(info->h, content->buf, content->length);
-
-        //ccn_charbuf_destroy(&signed_info);
+        result = ccn_put(info->h, content->buf, content->length);
         ccn_charbuf_destroy(&client_path);
         ccn_charbuf_destroy(&content);
 
-
-        // TODO: forked process send new interest to initiate user authentication?
-
-        return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
+        if( result == -1 ) {
+            message_on_send_failure(sys->ccn);
+            return CCN_UPCALL_RESULT_ERR;
+        } else {
+            //ccn_charbuf_destroy(&signed_info);
+            return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
+        }
     } else {
         // Interest with unrecongized name format
         printf("Unrecognized interest name\n");

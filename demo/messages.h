@@ -28,4 +28,9 @@ message_on_name_failure(struct ccn* ccn, char * var) {
     ccn_perror(ccn,"\n");
 }
 
+static inline void
+message_on_send_failure(struct ccn* ccn) {
+    ccn_perror(ccn,"Failed to send data");
+}
+
 #endif /* _messages_h_ */
