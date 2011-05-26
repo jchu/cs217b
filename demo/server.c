@@ -72,19 +72,21 @@ handleNewClient(struct ccn_closure *selfp,
     }
 
     // REFER TO: voccn/libeXosip2/src/eXtl_ccn.c:346
+    
+    printf("%s",info->interest_ccnb);
 
     // Parse interest name
     // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
     // TODO: /domain/ should be configurable length
-    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps -1 , "client" )  == 0 ) {
+    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps, "client" )  == 0 ) {
 
         const unsigned char* msg;
         size_t msg_size;
 
         // Ensure there is nothing after init msg
         result = ccn_name_comp_get(info->interest_ccnb, info->interest_comps,
-                info->matched_comps + 3, &msg, &msg_size );
-        if( result <= 0 ) {
+                info->matched_comps + 8, &msg, &msg_size );
+        if( result == 0 ) {
             // Interest with unrecongized name format
             printf("Unrecognized interest name. Missing client path.\n");
             return CCN_UPCALL_RESULT_ERR;
@@ -209,6 +211,7 @@ setup(int argc, char** argv) {
         message_on_name_failure(sys->ccn,"server mountpoint");
         exit(retvalue);
     }
+    ccn_name_append_str(sys->mountpoint,"ssh");
 
     sys->newClient = &newClientAction;
     retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,

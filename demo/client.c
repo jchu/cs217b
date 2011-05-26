@@ -179,6 +179,7 @@ remote_connect(int argc, char** argv) {
         exit(retvalue);
     }
     ccn_name_append_str(server_name,"ssh");
+    ccn_name_append_str(server_name,"client");
 
     // Add return path and init message to server name
     ccn_name_append_str(server_name,client_location);
