@@ -90,7 +90,7 @@ handleNewClient(struct ccn_closure *selfp,
             return CCN_UPCALL_RESULT_ERR;
         }
 
-        printf("Received client message (len %d)\n",msg_size);
+        printf("Received client message (len %u)\n",msg_size);
 
         // TODO: Handle encrypted init
         // result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(),
@@ -124,7 +124,7 @@ handleNewClient(struct ccn_closure *selfp,
         }
         */
 
-        printf("Sending back message.\n",msg_size);
+        printf("Sending back message.\n");
         //struct ccn_charbuf *name = ccn_charbuf_create();
         struct ccn_charbuf *content = ccn_charbuf_create();
         ccn_charbuf_append_string(content, "SSH-2.0-NDN"); // TODO: use real content
