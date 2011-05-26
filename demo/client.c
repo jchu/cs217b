@@ -35,6 +35,8 @@ struct interest_header_t {
 
 ccn_sys_t *ccn_sys;
 
+int client_id;
+
 /*
  * handleServer
  *
@@ -132,14 +134,27 @@ connect() {
     struct ccn_charbuf *templ = NULL;
     struct interest_header_t *header = NULL;
 
-    // Build name
-    server_name = ccn_charbuf_create();
+    char* client_location = argv[1];
+    char* server_location = argv[2];
+
+    // Build remote name
+    struct ccn_charbuf *server_name = ccn_charbuf_create();
     // TODO:location
-    retvalue = ccn_name_from_uri(server_name,location);
+    retvalue = ccn_name_from_uri(server_name,server_location);
     if( retvalue < 0 ) {
         message_on_name_failure("server name");
         exit(retvalue);
     }
+    ccn_name_append_str(client_name,"ssh");
+
+    // Add return path and init message to server name
+    ccn_name_append_str(server_name,client_location);
+    ccn_name_append_str(client_name,"ssh");
+
+    client_id = rand();
+    ccn_name_append_numeric(client_name,CCN_MARKER_NONE,client_id);
+    // Init message
+
 
     // Build interest
     templ = make_interest_template(header,NULL);
@@ -148,4 +163,13 @@ connect() {
 
     ccn_charbuf_destroy(&templ);
     ccn_charbuf_destroy(&server_name);
+}
+
+int main(int argc, char** argv)
+    sys = (ccn_sys) malloc(sizeof(struct ccn_sys_t));
+    srand(time(NULL))
+    connect(argc,argv);
+    ccn_run(sys->ccn,-1);
+    
+    return 0;
 }
