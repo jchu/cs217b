@@ -88,7 +88,6 @@ handleNewClient(struct ccn_closure *selfp,
     
     printf("%s\n",info->interest_ccnb);
 
-    print_ccnb_name(info);
 
     // Parse interest name
     // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
@@ -108,8 +107,7 @@ handleNewClient(struct ccn_closure *selfp,
             return CCN_UPCALL_RESULT_ERR;
         }
         */
-
-        //printf("Received client message (len %u)\n",msg_size);
+        print_ccnb_name(info);
 
         // TODO: Handle encrypted init
         // result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(),
@@ -125,9 +123,6 @@ handleNewClient(struct ccn_closure *selfp,
         ccn_name_init(client_path);
         ccn_name_append_components(client_path, info->interest_ccnb,
                 info->interest_comps->buf[0], info->interest_comps->buf[6]);
-        //ccn_name_from_uri(client_path,"ccnx:/helpme.org");
-        //ccn_name_append_str(client_path,"ssh");
-        //ccn_name_append_str(client_path,"test");
 
         printf("client_path: %s\n",ccn_charbuf_as_string(client_path));
 
@@ -165,7 +160,6 @@ handleNewClient(struct ccn_closure *selfp,
             printf("ccn_put result: %d\n",result);
             return CCN_UPCALL_RESULT_ERR;
         } else {
-
             ccn_charbuf_destroy(&signed_info);
             ccn_charbuf_destroy(&content);
             ccn_charbuf_destroy(&client_path);
@@ -174,28 +168,8 @@ handleNewClient(struct ccn_closure *selfp,
     } else {
         // Interest with unrecongized name format
         printf("Unrecognized interest name\n");
-/*
-        printf("Sending back message.\n");
-        //struct ccn_charbuf *name = ccn_charbuf_create();
-        struct ccn_charbuf *content = ccn_charbuf_create();
-        ccn_charbuf_append_string(content, "SSH-2.0-NDN"); // TODO: use real content
-        //ccn_encode_ContentObject(content, client_path, signed_info,
-        //        "",0,NULL, get_my_private_key());
-        result = ccn_put(info->h, content->buf, content->length);
-        ccn_charbuf_destroy(&client_path);
-        ccn_charbuf_destroy(&content);
-
-        if( result == -1 ) {
-            message_on_send_failure(sys->ccn);
-            return CCN_UPCALL_RESULT_ERR;
-        } else {
-            //ccn_charbuf_destroy(&signed_info);
-            return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
-        }
-*/
         return CCN_UPCALL_RESULT_ERR;
     }
-
 
     return CCN_UPCALL_RESULT_OK;
 }
