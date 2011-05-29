@@ -133,7 +133,7 @@ handleNewClient(struct ccn_closure *selfp,
         signed_info = ccn_charbuf_create();
         result = ccn_signed_info_create(signed_info,
                 get_my_publisher_key_id(),
-                get_my_publisher_key_id_length,
+                get_my_publisher_key_id_length(),
                 NULL,
                 CCN_CONTENT_DATA,
                 -1,
@@ -146,9 +146,13 @@ handleNewClient(struct ccn_closure *selfp,
         // TODO: forked process send new interest to initiate user authentication?
         printf("Sending back message.\n");
         content = ccn_charbuf_create();
-        ccn_charbuf_append_string(content, "SSH-2.0-NDN"); // TODO: use real content
-        ccn_encode_ContentObject(content, client_path, signed_info,
-                "",0,NULL, get_my_private_key());
+
+        ccn_encode_ContentObject(
+                content,
+                client_path,
+                signed_info,
+                "SSH-2.0-NDN",12,
+                NULL, get_my_private_key());
         result = ccn_put(info->h, content->buf, content->length);
         ccn_charbuf_destroy(&client_path);
         ccn_charbuf_destroy(&content);
