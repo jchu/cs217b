@@ -50,4 +50,9 @@ message_on_no_pubkey(struct ccn* ccn, char * host) {
     ccn_perror(ccn,"\n");
 }
 
+static inline void
+message_on_publish_key_failure(struct ccn* ccn) {
+    ccn_perror(ccn,"Failed to publish key to CCN.\n");
+}
+
 #endif /* _messages_h_ */

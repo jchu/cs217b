@@ -209,7 +209,14 @@ setup(int argc, char** argv) {
 
     printf("Listening on %s/%s/%s\n",location,"ssh","client");
 
+    // Publish server key
     cached_keystore = init_keystore();
+    if( ccn_publish_key(sys->ccn,cached_keystore,location) != 0 ) {
+        message_on_publish_key_failure(sys->ccn);
+        exit(-1);
+    } else {
+        fprintf(stderr, "Successfully published SSH key to CCN.\n");
+    }
 }
 
 int
