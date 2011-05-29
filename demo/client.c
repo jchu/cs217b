@@ -13,6 +13,7 @@
 #include <ccn/header.h>
 
 #include "messages.h"
+#include "utils.h"
 
 /*******************************
  * CCNx specific constants
@@ -200,7 +201,16 @@ remote_connect(int argc, char** argv) {
     ccn_name_append_str(server_name,client_location);
     ccn_name_append_str(server_name,"ssh");
     ccn_name_append_numeric(server_name,CCN_MARKER_NONE,client_id);
+
     // Init message
+    // See voccn - eXtl_ccn.c:738
+    struct ccn_pkey *server_pkey = NULL;
+    if( get_public_key(sys->ccn,server_location,&server_pkey) == 0 ) {
+        fprintf(stderr, "ENCRYPT INIT: retrieved public key for %s.\n",server_location);
+    } else {
+        // Cannot retrieve server's public key
+        message_on_no_pubkey(sys->ccn,server_location);
+    }
 
     // Build interest
     templ = make_interest_template(header,NULL);

@@ -40,11 +40,6 @@ handleNewClient(struct ccn_closure *selfp,
         enum ccn_upcall_kind kind,
         struct ccn_upcall_info *info);
 
-static const struct ccn_pkey * get_my_private_key(void);
-static const struct ccn_certificate * get_my_certificate(void);
-static const unsigned char * get_my_publisher_key_id(void);
-static ssize_t get_my_publisher_key_id_length(void);
-
 typedef struct ccn_sys_t *ccn_sys;
 
 static struct ccn_closure newClientAction = {
@@ -94,11 +89,11 @@ handleNewClient(struct ccn_closure *selfp,
     // TODO: /domain/ should be configurable length
     if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps-1, "client" )  == 0 ) {
 
+        // Ensure there is nothing after init msg
+        /*
         const unsigned char* msg;
         size_t msg_size;
 
-        // Ensure there is nothing after init msg
-        /*
         result = ccn_name_comp_get(info->interest_ccnb, info->interest_comps,
                 info->matched_comps + 8, &msg, &msg_size );
         if( result == 0 ) {
@@ -127,11 +122,11 @@ handleNewClient(struct ccn_closure *selfp,
         printf("client_path: %s\n",ccn_charbuf_as_string(client_path));
 
         // Respond with SSH version number
-        struct ccn_charbuf *signed_info, *name, *content;
+        struct ccn_charbuf *signed_info, *content;
         signed_info = ccn_charbuf_create();
         result = ccn_signed_info_create(signed_info,
-                get_my_publisher_key_id(),
-                get_my_publisher_key_id_length(),
+                get_my_publisher_key_id(cached_keystore),
+                get_my_publisher_key_id_length(cached_keystore),
                 NULL,
                 CCN_CONTENT_DATA,
                 -1,
@@ -149,7 +144,7 @@ handleNewClient(struct ccn_closure *selfp,
                 client_path,
                 signed_info,
                 "SSH-2.0-NDN",12,
-                NULL, get_my_private_key());
+                NULL, get_my_private_key(cached_keystore));
         printf("CCN PUT CONTENT\n");
         result = ccn_put(info->h, content->buf, content->length);
         ccn_charbuf_destroy(&client_path);
@@ -173,60 +168,6 @@ handleNewClient(struct ccn_closure *selfp,
 
     return CCN_UPCALL_RESULT_OK;
 }
-
-static void
-init_cached_keystore(void)
-{
-    struct ccn_keystore *keystore = cached_keystore;
-    int res;
-    /* XXX - missing mutex? */
-    if (keystore == NULL) {
-        struct ccn_charbuf *temp = ccn_charbuf_create();
-        keystore = ccn_keystore_create();
-        ccn_charbuf_putf(temp, "%s/.ccnx/.ccnx_keystore", getenv("HOME"));
-        res = ccn_keystore_init(keystore,
-                ccn_charbuf_as_string(temp),
-                "Th1s1sn0t8g00dp8ssw0rd.");
-        if (res != 0) {
-            printf("Failed to initialize keystore %s\n", ccn_charbuf_as_string(temp));
-
-        exit(1);
-    }
-    ccn_charbuf_destroy(&temp);
-    cached_keystore = keystore;
-    }
-}
-
-
-static const struct ccn_pkey *
-get_my_private_key(void)
-{
-    if (cached_keystore == NULL) init_cached_keystore();
-    return (ccn_keystore_private_key(cached_keystore));
-}
-
-static const struct ccn_certificate *
-get_my_certificate(void)
-{
-    if (cached_keystore == NULL) init_cached_keystore();
-    return (ccn_keystore_certificate(cached_keystore));
-}
-
-static const unsigned char *
-get_my_publisher_key_id(void)
-{
-    if (cached_keystore == NULL) init_cached_keystore();
-    return (ccn_keystore_public_key_digest(cached_keystore));
-}
-
-
-static ssize_t
-get_my_publisher_key_id_length(void)
-{
-    if (cached_keystore == NULL) init_cached_keystore();
-    return (ccn_keystore_public_key_digest_length(cached_keystore));
-}
-
 
 void
 setup(int argc, char** argv) {
@@ -267,6 +208,8 @@ setup(int argc, char** argv) {
     }
 
     printf("Listening on %s/%s/%s\n",location,"ssh","client");
+
+    cached_keystore = init_keystore();
 }
 
 int

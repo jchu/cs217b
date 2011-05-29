@@ -43,4 +43,11 @@ message_on_send_failure(struct ccn* ccn) {
     ccn_perror(ccn,"Failed to send data");
 }
 
+static inline void
+message_on_no_pubkey(struct ccn* ccn, char * host) {
+    ccn_perror(ccn,"Missing public key for ");
+    ccn_perror(ccn,host);
+    ccn_perror(ccn,"\n");
+}
+
 #endif /* _messages_h_ */
