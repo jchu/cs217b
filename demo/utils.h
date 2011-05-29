@@ -17,7 +17,7 @@ print_ccnb_name(struct ccn_upcall_info *info) {
 
     while( ccn_name_comp_get(info->interest_ccnb, info->interest_comps,
                 i, &comp_ptr, &comp_size) == 0 ) {
-        printf("%.*s/",comp_size,(const char*)comp_ptr);
+        printf("(%d) %.*s | ",i,comp_size,(const char*)comp_ptr);
         i++;
     }
     printf("\n");

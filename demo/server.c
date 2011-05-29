@@ -93,7 +93,7 @@ handleNewClient(struct ccn_closure *selfp,
     // Parse interest name
     // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
     // TODO: /domain/ should be configurable length
-    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps, "client" )  == 0 ) {
+    if( ccn_name_comp_strcmp(info->interest_ccnb, info->interest_comps,info->matched_comps-1, "client" )  == 0 ) {
 
         const unsigned char* msg;
         size_t msg_size;
@@ -124,7 +124,10 @@ handleNewClient(struct ccn_closure *selfp,
         struct ccn_charbuf *client_path = ccn_charbuf_create();
         ccn_name_init(client_path);
         ccn_name_append_components(client_path, info->interest_ccnb,
-                info->interest_comps->buf[0], info->interest_comps->buf[5]);
+                info->interest_comps->buf[0], info->interest_comps->buf[6]);
+        //ccn_name_from_uri(client_path,"ccnx:/helpme.org");
+        //ccn_name_append_str(client_path,"ssh");
+        //ccn_name_append_str(client_path,"test");
 
         printf("client_path: %s\n",ccn_charbuf_as_string(client_path));
 
@@ -144,7 +147,6 @@ handleNewClient(struct ccn_closure *selfp,
         }
 
         // TODO: forked process send new interest to initiate user authentication?
-        printf("Sending back message.\n");
         content = ccn_charbuf_create();
 
         ccn_encode_ContentObject(
@@ -153,15 +155,20 @@ handleNewClient(struct ccn_closure *selfp,
                 signed_info,
                 "SSH-2.0-NDN",12,
                 NULL, get_my_private_key());
+        printf("CCN PUT CONTENT\n");
         result = ccn_put(info->h, content->buf, content->length);
         ccn_charbuf_destroy(&client_path);
         ccn_charbuf_destroy(&content);
 
-        if( result == -1 ) {
+        if( result < 0 ) {
             message_on_send_failure(sys->ccn);
+            printf("ccn_put result: %d\n",result);
             return CCN_UPCALL_RESULT_ERR;
         } else {
-            //ccn_charbuf_destroy(&signed_info);
+
+            ccn_charbuf_destroy(&signed_info);
+            ccn_charbuf_destroy(&content);
+            ccn_charbuf_destroy(&client_path);
             return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
         }
     } else {
@@ -275,14 +282,17 @@ setup(int argc, char** argv) {
         exit(retvalue);
     }
     ccn_name_append_str(sys->mountpoint,"ssh");
+    ccn_name_append_str(sys->mountpoint,"client");
 
     sys->newClient = &newClientAction;
     retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,
             sys->newClient);
     if( retvalue < 0 ) {
-        //message_on_route_failure();
+        message_on_route_failure(sys->ccn);
         exit(retvalue);
     }
+
+    printf("Listening on %s/%s/%s\n",location,"ssh","client");
 }
 
 int

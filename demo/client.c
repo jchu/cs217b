@@ -81,9 +81,12 @@ handleServer(struct ccn_closure *selfp,
             // Daemon notified server timed out. Reexpress interest
             return CCN_UPCALL_RESULT_REEXPRESS;
         case CCN_UPCALL_CONTENT_UNVERIFIED:
-            // Requires verification
-            return CCN_UPCALL_RESULT_VERIFY;
+            // Requires verification?
+            //return CCN_UPCALL_RESULT_VERIFY;
+            printf("Got unverified content\n");
+            break;
         case CCN_UPCALL_CONTENT:
+            printf("Got content\n");
             //return CCN_UPCALL_RESULT_OK;
             break;
         default:
@@ -102,6 +105,7 @@ handleServer(struct ccn_closure *selfp,
     }
 
     // Interpret content
+    printf("RECV CCN MESSAGE CONTENT \n%s %d\n", (char *)data,data_size);
 
     return CCN_UPCALL_RESULT_OK;
 }
@@ -114,8 +118,10 @@ make_interest_template()
     ccn_charbuf_append_tt(templ, CCN_DTAG_Name, CCN_DTAG); /* <Name> */
     ccn_charbuf_append_closer(templ); /* </Name> */
 
-    // TODO: consider min/max suffix components
-    // TODO: AnswerOriginKind
+    ccn_charbuf_append_tt(templ, CCN_DTAG_ChildSelector, CCN_DTAG);
+    ccnb_append_number(templ,1);
+    ccn_charbuf_append_closer(templ);
+
     
     ccn_charbuf_append_closer(templ); /* </Interest> */
     return templ;
@@ -153,12 +159,16 @@ setup(int argc, char** argv) {
     ccn_name_append_numeric(sys->mountpoint,CCN_MARKER_NONE,client_id);
 
     sys->responseHandler = &serverAction;
+    /*
     retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,
             sys->responseHandler);
     if( retvalue < 0 ) {
         message_on_route_failure(sys->ccn);
         exit(retvalue);
     }
+    //printf("Listening on %s/%s/%d\n",client_location,"ssh",client_id);
+    printf("Listening on %s/%s/%d\n",client_location,"ssh","test");
+    */
 }
 
 /*
@@ -194,6 +204,8 @@ remote_connect(int argc, char** argv) {
 
     // Build interest
     templ = make_interest_template(header,NULL);
+
+    printf("CCN SEND INIT\n");
     
     ccn_express_interest(sys->ccn, server_name, sys->responseHandler, templ);
     printf("Sent init message to server: %s\n",ccn_charbuf_as_string(server_name));
