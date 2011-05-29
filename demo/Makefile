@@ -21,10 +21,12 @@ server: server.o
 
 server.o: $(CCNINCDIR)/ccn.h $(CCNINCDIR)/charbuf.h \
 	$(CCNINCDIR)/uri.h $(CCNINCDIR)/header.h \
+	$(CCNINCDIR)/keystore.h $(CCNINCDIR)/signing.h \
 	messages.h
 
 server.o: $(CCNINCDIR)/ccn.h $(CCNINCDIR)/charbuf.h \
 	$(CCNINCDIR)/uri.h $(CCNINCDIR)/header.h \
+	$(CCNINCDIR)/keystore.h $(CCNINCDIR)/signing.h \
 	messages.h
 
 clean:

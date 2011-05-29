@@ -11,6 +11,8 @@
 #include <ccn/charbuf.h>
 #include <ccn/uri.h>
 #include <ccn/header.h>
+#include <ccn/keystore.h>
+#include <ccn/signing.h>
 
 #include "messages.h"
 
@@ -37,14 +39,24 @@ handleNewClient(struct ccn_closure *selfp,
         enum ccn_upcall_kind kind,
         struct ccn_upcall_info *info);
 
+static const struct ccn_pkey * get_my_private_key(void);
+static const struct ccn_certificate * get_my_certificate(void);
+static const unsigned char * get_my_publisher_key_id(void);
+static ssize_t get_my_publisher_key_id_length(void);
+
 typedef struct ccn_sys_t *ccn_sys;
 
 static struct ccn_closure newClientAction = {
     .p = &handleNewClient
 };
 
+/******************************
+ * Local Declaraions
+ *****************************/
+
 ccn_sys sys;
 char* mountpoint;
+static struct ccn_keystore *cached_keystore;
 
 /*
  * handleNewClient
@@ -73,7 +85,15 @@ handleNewClient(struct ccn_closure *selfp,
 
     // REFER TO: voccn/libeXosip2/src/eXtl_ccn.c:346
     
-    printf("%s",info->interest_ccnb);
+    printf("%s\n",info->interest_ccnb);
+
+    int i = 0;
+    char * str = (char *)info->interest_ccnb;
+    while(str[i]!='\0') {
+        printf("%d ",str[i]);
+        i++;
+    }
+    printf("\n");
 
     // Parse interest name
     // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
@@ -84,6 +104,7 @@ handleNewClient(struct ccn_closure *selfp,
         size_t msg_size;
 
         // Ensure there is nothing after init msg
+        /*
         result = ccn_name_comp_get(info->interest_ccnb, info->interest_comps,
                 info->matched_comps + 8, &msg, &msg_size );
         if( result == 0 ) {
@@ -91,6 +112,7 @@ handleNewClient(struct ccn_closure *selfp,
             printf("Unrecognized interest name. Missing client path.\n");
             return CCN_UPCALL_RESULT_ERR;
         }
+        */
 
         //printf("Received client message (len %u)\n",msg_size);
 
@@ -107,10 +129,11 @@ handleNewClient(struct ccn_closure *selfp,
         struct ccn_charbuf *client_path = ccn_charbuf_create();
         ccn_name_init(client_path);
         ccn_name_append_components(client_path, info->interest_ccnb,
-                info->interest_comps->buf[3], info->interest_comps->buf[6]);
+                info->interest_comps->buf[0], info->interest_comps->buf[5]);
+
+        printf("client_path: %s\n",ccn_charbuf_as_string(client_path));
 
         // Respond with SSH version number
-        /* For signing
         struct ccn_charbuf *signed_info, *name, *content;
         signed_info = ccn_charbuf_create();
         result = ccn_signed_info_create(signed_info,
@@ -118,15 +141,34 @@ handleNewClient(struct ccn_closure *selfp,
                 get_my_publisher_key_id_length,
                 NULL,
                 CCN_CONTENT_DATA,
-                -1
+                -1,
                 NULL,
-                NUL);
+                NULL);
         if( result < 0 ) {
-            // TODO: error
+            printf("failed to create signed info (res == %d)\n",result);
         }
-        */
 
         // TODO: forked process send new interest to initiate user authentication?
+        printf("Sending back message.\n");
+        content = ccn_charbuf_create();
+        ccn_charbuf_append_string(content, "SSH-2.0-NDN"); // TODO: use real content
+        ccn_encode_ContentObject(content, client_path, signed_info,
+                "",0,NULL, get_my_private_key());
+        result = ccn_put(info->h, content->buf, content->length);
+        ccn_charbuf_destroy(&client_path);
+        ccn_charbuf_destroy(&content);
+
+        if( result == -1 ) {
+            message_on_send_failure(sys->ccn);
+            return CCN_UPCALL_RESULT_ERR;
+        } else {
+            //ccn_charbuf_destroy(&signed_info);
+            return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
+        }
+    } else {
+        // Interest with unrecongized name format
+        printf("Unrecognized interest name\n");
+/*
         printf("Sending back message.\n");
         //struct ccn_charbuf *name = ccn_charbuf_create();
         struct ccn_charbuf *content = ccn_charbuf_create();
@@ -144,16 +186,38 @@ handleNewClient(struct ccn_closure *selfp,
             //ccn_charbuf_destroy(&signed_info);
             return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
         }
-    } else {
-        // Interest with unrecongized name format
-        printf("Unrecognized interest name\n");
+*/
         return CCN_UPCALL_RESULT_ERR;
     }
 
 
     return CCN_UPCALL_RESULT_OK;
 }
-/*
+
+static void
+init_cached_keystore(void)
+{
+    struct ccn_keystore *keystore = cached_keystore;
+    int res;
+    /* XXX - missing mutex? */
+    if (keystore == NULL) {
+        struct ccn_charbuf *temp = ccn_charbuf_create();
+        keystore = ccn_keystore_create();
+        ccn_charbuf_putf(temp, "%s/.ccnx/.ccnx_keystore", getenv("HOME"));
+        res = ccn_keystore_init(keystore,
+                ccn_charbuf_as_string(temp),
+                "Th1s1sn0t8g00dp8ssw0rd.");
+        if (res != 0) {
+            printf("Failed to initialize keystore %s\n", ccn_charbuf_as_string(temp));
+
+        exit(1);
+    }
+    ccn_charbuf_destroy(&temp);
+    cached_keystore = keystore;
+    }
+}
+
+
 static const struct ccn_pkey *
 get_my_private_key(void)
 {
@@ -182,7 +246,7 @@ get_my_publisher_key_id_length(void)
     if (cached_keystore == NULL) init_cached_keystore();
     return (ccn_keystore_public_key_digest_length(cached_keystore));
 }
-*/
+
 
 void
 setup(int argc, char** argv) {
