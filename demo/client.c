@@ -11,6 +11,8 @@
 #include <ccn/charbuf.h>
 #include <ccn/uri.h>
 #include <ccn/header.h>
+#include <ccn/keystore.h>
+#include <ccn/signing.h>
 
 #include "messages.h"
 #include "utils.h"
@@ -46,9 +48,13 @@ struct interest_header_t {
 
 typedef struct ccn_sys_t *ccn_sys;
 
-ccn_sys sys;
+/******************************
+ * Local Declarations
+ *****************************/
 
+ccn_sys sys;
 int client_id;
+static struct ccn_keystore *cached_keystore;
 
 /*
  * handleServer
@@ -83,8 +89,8 @@ handleServer(struct ccn_closure *selfp,
             return CCN_UPCALL_RESULT_REEXPRESS;
         case CCN_UPCALL_CONTENT_UNVERIFIED:
             // Requires verification?
-            //return CCN_UPCALL_RESULT_VERIFY;
             printf("Got unverified content\n");
+            //return CCN_UPCALL_RESULT_VERIFY;
             break;
         case CCN_UPCALL_CONTENT:
             printf("Got content\n");
@@ -160,16 +166,23 @@ setup(int argc, char** argv) {
     ccn_name_append_numeric(sys->mountpoint,CCN_MARKER_NONE,client_id);
 
     sys->responseHandler = &serverAction;
-    /*
+    
     retvalue = ccn_set_interest_filter(sys->ccn,sys->mountpoint,
             sys->responseHandler);
     if( retvalue < 0 ) {
         message_on_route_failure(sys->ccn);
         exit(retvalue);
     }
-    //printf("Listening on %s/%s/%d\n",client_location,"ssh",client_id);
-    printf("Listening on %s/%s/%d\n",client_location,"ssh","test");
-    */
+    printf("Listening on %s/%s/%d\n",client_location,"ssh",client_id);
+    
+    // Publish client key
+    cached_keystore = init_keystore();
+    if( ccn_publish_key(sys->ccn,cached_keystore,client_location) != 0 ) {
+        message_on_publish_key_failure(sys->ccn);
+        exit(-1);
+    } else {
+        fprintf(stderr, "Successfully published SSH key to CCN.\n");
+    }
 }
 
 /*
