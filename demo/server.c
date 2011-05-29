@@ -15,6 +15,7 @@
 #include <ccn/signing.h>
 
 #include "messages.h"
+#include "utils.h"
 
 /*******************************
  * CCNx specific constants
@@ -87,13 +88,7 @@ handleNewClient(struct ccn_closure *selfp,
     
     printf("%s\n",info->interest_ccnb);
 
-    int i = 0;
-    char * str = (char *)info->interest_ccnb;
-    while(str[i]!='\0') {
-        printf("%d ",str[i]);
-        i++;
-    }
-    printf("\n");
+    print_ccnb_name(info);
 
     // Parse interest name
     // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
