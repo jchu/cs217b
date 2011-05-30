@@ -239,4 +239,51 @@ ccn_publish_key(struct ccn* ccn, struct ccn_keystore *cached_keystore, const cha
     return 0;
 }
 
+int
+ccn_pubkey_encrypt(struct ccn_pkey *public_key,
+        const unsigned char *data, size_t data_length,
+        unsigned char **encrypted_output,
+        size_t *encrypted_output_length) {
+
+    EVP_PKEY_CTX *ctx;
+    EVP_PKEY *pkey = (EVP_PKEY*)public_key;
+
+    unsigned char *encrypted = NULL;
+
+    int result = 0;
+
+    // Sanitization
+    if( (data = NULL) || (data_length == 0) || (public_key == NULL) )
+        return EINVAL;
+
+    if( encrypted_output == NULL )
+        return ENOBUFS;
+
+    ctx = EVP_PKEY_CTX_new(pkey,NULL);
+
+    EVP_PKEY_encrypt_init(ctx);
+
+    // Determine buffer size
+    if ( EVP_PKEY_encrypt(ctx, NULL,
+                encrypted_output_length,
+                data, data_length) <= 0 )
+        return ENOBUFS;
+    ctx = EVP_PKEY_CTX_new(pkey,NULL);
+    EVP_PKEY_encrypt_init(ctx);
+
+    encrypted = OPENSSL_malloc(*encrypted_output_length);
+    if( encrypted == NULL )
+        return ENOBUFS;
+
+    result = EVP_PKEY_encrypt(ctx,
+            encrypted, encrypted_output_length,
+            data, data_length);
+
+    if( result <= 0 ) {
+        fprintf(stderr,"encrypt failed");
+    }
+    *encrypted_output = encrypted;
+    return result;
+}
+
 #endif /* _utils_h_ */

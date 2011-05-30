@@ -225,6 +225,13 @@ remote_connect(int argc, char** argv) {
         message_on_no_pubkey(sys->ccn,server_location);
     }
 
+    char * init_message = "encrypted message";
+    unsigned char *init_block = NULL;
+    size_t init_block_length = 0;
+    ccn_pubkey_encrypt(server_pkey,(const unsigned char *)init_message, (size_t)strlen(init_message),
+            &init_block, &init_block_length);
+    ccn_name_append(server_name,(char *)init_block,init_block_length);
+
     // Build interest
     templ = make_interest_template(header,NULL);
 
