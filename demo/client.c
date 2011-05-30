@@ -231,7 +231,8 @@ remote_connect(int argc, char** argv) {
     printf("CCN SEND INIT\n");
     
     ccn_express_interest(sys->ccn, server_name, sys->responseHandler, templ);
-    printf("Sent init message to server: %s\n",ccn_charbuf_as_string(server_name));
+    printf("Sent init message to server:\n");
+    print_ccnb_charbuf(server_name);
 
     ccn_charbuf_destroy(&templ);
     ccn_charbuf_destroy(&server_name);

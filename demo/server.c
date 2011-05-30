@@ -81,9 +81,6 @@ handleNewClient(struct ccn_closure *selfp,
 
     // REFER TO: voccn/libeXosip2/src/eXtl_ccn.c:346
     
-    printf("%s\n",info->interest_ccnb);
-
-
     // Parse interest name
     // Expecting /domain/ssh/client/<return path: /domain/ssh/id/>/<init msg>
     // TODO: /domain/ should be configurable length
@@ -102,6 +99,8 @@ handleNewClient(struct ccn_closure *selfp,
             return CCN_UPCALL_RESULT_ERR;
         }
         */
+
+        printf("Interest from:\n");
         print_ccnb_name(info);
 
         // TODO: Handle encrypted init
@@ -118,8 +117,6 @@ handleNewClient(struct ccn_closure *selfp,
         ccn_name_init(client_path);
         ccn_name_append_components(client_path, info->interest_ccnb,
                 info->interest_comps->buf[0], info->interest_comps->buf[6]);
-
-        printf("client_path: %s\n",ccn_charbuf_as_string(client_path));
 
         // Respond with SSH version number
         struct ccn_charbuf *signed_info, *content;
@@ -145,7 +142,8 @@ handleNewClient(struct ccn_closure *selfp,
                 signed_info,
                 "SSH-2.0-NDN",12,
                 NULL, get_my_private_key(cached_keystore));
-        printf("CCN PUT CONTENT\n");
+        printf("CCN PUT CONTENT to client:\n");
+        print_ccnb_charbuf(client_path);
         result = ccn_put(info->h, content->buf, content->length);
         ccn_charbuf_destroy(&client_path);
         ccn_charbuf_destroy(&content);

@@ -33,6 +33,27 @@ print_ccnb_name(struct ccn_upcall_info *info) {
     printf("\n");
 }
 
+void
+print_ccnb_charbuf(struct ccn_charbuf *namebuf) {
+    struct ccn_indexbuf *components = ccn_indexbuf_create();
+    int result = ccn_name_split(namebuf,components);
+    if( result < 0 ) {
+        fprintf(stderr,"error splitting charbuf\n");
+        exit(-1);
+    }
+
+    int i = 0;
+    const unsigned char *comp_ptr;
+    size_t comp_size;
+
+    while( ccn_name_comp_get(namebuf->buf, components,
+                i, &comp_ptr, &comp_size) == 0 ) {
+        printf("(%d) %.*s | ",i,comp_size,(const char*)comp_ptr);
+        i++;
+    }
+    printf("\n");
+}
+
 /* KEYS */
 static struct ccn_keystore *
 init_keystore()
