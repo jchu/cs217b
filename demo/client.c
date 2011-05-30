@@ -228,13 +228,14 @@ remote_connect(int argc, char** argv) {
 
     char * secret = "this is a secret message";
     unsigned char *init_block = NULL;
-    size_t init_block_length = 0
+    size_t init_block_length = 0;
     retvalue = ccn_pubkey_encrypt(server_pkey,
-            secret,strlen(secret),
+            (unsigned char*)secret,strlen(secret),
             &init_block,&init_block_length);
     if ( retvalue < 0 ) {
         message_on_encrypt_failure(sys->ccn,secret);
     }
+    ccn_name_append(server_name,(char*)init_block,init_block_length);
 
     // Build interest
     templ = make_interest_template(header,NULL);

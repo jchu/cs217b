@@ -116,7 +116,7 @@ handleNewClient(struct ccn_closure *selfp,
         struct ccn_charbuf *client_path = ccn_charbuf_create();
         ccn_name_init(client_path);
         ccn_name_append_components(client_path, info->interest_ccnb,
-                info->interest_comps->buf[0], info->interest_comps->buf[6]);
+                info->interest_comps->buf[0], info->interest_comps->buf[7]);
 
         // Respond with SSH version number
         struct ccn_charbuf *signed_info, *content;

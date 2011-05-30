@@ -250,12 +250,18 @@ int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
                        size_t *encrypted_output_length) {
 
     int openssl_result = 0;
-    EVP_CIPHER_CTX *ctx = NULL;
+
+    EVP_CIPHER_CTX ctx;
     EVP_PKEY *pkey = (EVP_PKEY*)public_key;
-    unsigned char *ek;
+
+    unsigned char *ek = NULL;
     int eklen;
+
     unsigned char iv[EVP_MAX_IV_LENGTH];
     unsigned char *eptr = NULL;
+
+    int len_out;
+    int data_len = data_length;
 
     if ((NULL == data) || (0 == data_length) || (NULL == public_key))
         return EINVAL;
@@ -264,10 +270,10 @@ int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
         ((NULL != *encrypted_output) && (*encrypted_output_length < ccn_pubkey_size(public_key))))
         return ENOBUFS;
 
-    EVP_CIPHER_CTX_init(ctx);
-    *encrypted_output_length = ccn_pubkey_size(public_key);
+    EVP_CIPHER_CTX_init(&ctx);
+    ek = (unsigned char*)malloc(ccn_pubkey_size(public_key));
 
-    openssl_result = EVP_SealInit(ctx, EVP_aes_128_cbc(), &ek, &eklen, iv, &pkey, 1);
+    openssl_result = EVP_SealInit(&ctx, EVP_aes_128_cbc(), &ek, &eklen, iv, &pkey, 1);
 
     if (openssl_result == 0) {
         fprintf(stderr, "EVP_SealInit: failed.\n");
@@ -280,15 +286,14 @@ int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
     if (NULL != *encrypted_output)
         eptr = *encrypted_output;
     else {
-        eptr = (unsigned char *)malloc(*encrypted_output_length);
+        eptr = (unsigned char *)malloc(*ek);
         if (NULL == eptr)
             return ENOMEM;
     }
 
     memset(eptr, 0, *encrypted_output_length);
 
-    openssl_result = EVP_SealUpdate(ctx, eptr, encrypted_output_length,
-                data, data_length);
+    openssl_result = EVP_SealUpdate(&ctx, eptr, &len_out, data, data_length);
 
     if (openssl_result == 0) {
         fprintf(stderr, "EVP_SealUpdate: failed.\n");
@@ -298,7 +303,7 @@ int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
         return openssl_result;
     }
 
-    openssl_result = EVP_SealFinal(ctx, eptr, encrypted_output_length);
+    openssl_result = EVP_SealFinal(&ctx, eptr, &len_out);
 
     if (openssl_result == 0) {
         fprintf(stderr, "EVP_SealFinal: failed.\n");
@@ -309,6 +314,7 @@ int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
     }
 
     *encrypted_output = eptr;
+    *encrypted_output_length = len_out;
     return 0;
 }
 
