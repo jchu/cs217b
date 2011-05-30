@@ -104,9 +104,28 @@ handleNewClient(struct ccn_closure *selfp,
         print_ccnb_name(info);
 
         // TODO: Handle encrypted init
-        // result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(),
-        // key_block, key_block_length,
-        // &key_buffer, &key_len);
+        const unsigned char *encrypted_init = NULL;
+        size_t encrypted_init_length = 0;
+        unsigned char *decrypted_init = NULL;
+        size_t decrypted_init_length = 0;
+        unsigned char *key_buffer = NULL;
+        size_t key_len = 0;
+
+        result = ccn_name_comp_get(info->interest_ccnb,info->interest_comps,
+                6, &encrypted_init, &encrypted_init_length);
+        if( result < 0 ) {
+            fprintf(stderr,"Missing encrypted init message");
+            return CCN_UPCALL_RESULT_ERR;
+        }
+
+        result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(cached_keystore),
+            encrypted_init, encrypted_init_length,
+            &decrypted_init, &decrypted_init_length);
+        if( result < 0 ) {
+            fprintf(stderr,"Cannot decrypt init message");
+            return CCN_UPCALL_RESULT_ERR;
+        }
+        printf("init message: %s\n",decrypted_init);
         //
         // result = ccn_verify_mac
         // result = ccn_decrypt
