@@ -55,4 +55,11 @@ message_on_publish_key_failure(struct ccn* ccn) {
     ccn_perror(ccn,"Failed to publish key to CCN.\n");
 }
 
+static inline void
+message_on_encrypt_failure(struct ccn* ccn, char *secret) {
+    ccn_perror(ccn,"Could not encrypt secret: ");
+    ccn_perror(ccn,secret);
+    ccn_perror(ccn,"\n");
+}
+
 #endif /* _messages_h_ */

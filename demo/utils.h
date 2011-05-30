@@ -19,6 +19,9 @@
 #include <ccn/keystore.h>
 #include <ccn/signing.h>
 
+static size_t ccn_mac_length() {                                                   return AES_BLOCK_SIZE;                                                     
+}
+
 void
 print_ccnb_name(struct ccn_upcall_info *info) {
     int i = 0;
@@ -238,5 +241,298 @@ ccn_publish_key(struct ccn* ccn, struct ccn_keystore *cached_keystore, const cha
     ccn_charbuf_destroy(&message);
     return 0;
 }
+
+// Encrypt/Decrypt
+
+int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
+                       unsigned char *data, size_t data_length,
+                       unsigned char **encrypted_output,
+                       size_t *encrypted_output_length) {
+
+    int openssl_result = 0;
+    EVP_CIPHER_CTX *ctx = NULL;
+    EVP_PKEY *pkey = (EVP_PKEY*)public_key;
+    unsigned char *ek;
+    int eklen;
+    unsigned char iv[EVP_MAX_IV_LENGTH];
+    unsigned char *eptr = NULL;
+
+    if ((NULL == data) || (0 == data_length) || (NULL == public_key))
+        return EINVAL;
+
+    if ((NULL == encrypted_output)|| (NULL == encrypted_output_length) ||
+        ((NULL != *encrypted_output) && (*encrypted_output_length < ccn_pubkey_size(public_key))))
+        return ENOBUFS;
+
+    EVP_CIPHER_CTX_init(ctx);
+    *encrypted_output_length = ccn_pubkey_size(public_key);
+
+    openssl_result = EVP_SealInit(ctx, EVP_aes_128_cbc(), &ek, &eklen, iv, &pkey, 1);
+
+    if (openssl_result == 0) {
+        fprintf(stderr, "EVP_SealInit: failed.\n");
+        if (NULL == *encrypted_output) {
+            free(eptr);
+        }
+        return openssl_result;
+    }
+
+    if (NULL != *encrypted_output)
+        eptr = *encrypted_output;
+    else {
+        eptr = (unsigned char *)malloc(*encrypted_output_length);
+        if (NULL == eptr)
+            return ENOMEM;
+    }
+
+    memset(eptr, 0, *encrypted_output_length);
+
+    openssl_result = EVP_SealUpdate(ctx, eptr, encrypted_output_length,
+                data, data_length);
+
+    if (openssl_result == 0) {
+        fprintf(stderr, "EVP_SealUpdate: failed.\n");
+        if (NULL == *encrypted_output) {
+            free(eptr);
+        }
+        return openssl_result;
+    }
+
+    openssl_result = EVP_SealFinal(ctx, eptr, encrypted_output_length);
+
+    if (openssl_result == 0) {
+        fprintf(stderr, "EVP_SealFinal: failed.\n");
+        if (NULL == *encrypted_output) {
+            free(eptr);
+        }
+        return openssl_result;
+    }
+
+    *encrypted_output = eptr;
+    return 0;
+}
+
+static int ccn_privkey_decrypt(
+                               EVP_PKEY *private_key,
+                               const unsigned char *ciphertext, size_t ciphertext_length,
+                               unsigned char **decrypted_output,
+                               size_t *decrypted_output_length) {
+
+    unsigned char *dptr = NULL;
+
+    if ((NULL == ciphertext) || (0 == ciphertext_length) || (NULL == private_key))
+        return EINVAL;
+
+    if ((NULL == decrypted_output)|| (NULL == decrypted_output_length) ||
+        ((NULL != *decrypted_output) && (*decrypted_output_length < EVP_PKEY_size(private_key))))
+        return ENOBUFS;
+
+    *decrypted_output_length = EVP_PKEY_size(private_key);
+    if (NULL != *decrypted_output)
+        dptr = *decrypted_output;
+    else {
+        dptr = (unsigned char *)malloc(*decrypted_output_length);
+        if (NULL == dptr)
+            return ENOMEM;
+    }
+
+    memset(dptr, 0, *decrypted_output_length);
+
+    /* DKS -- in 0.9.8.i, this resolves to RSA_public_encrypt, which
+       returns -1 on err. In 0.9.9, this will change to something
+       more effective. */
+    *decrypted_output_length = EVP_PKEY_decrypt(dptr,
+                                                ciphertext, ciphertext_length,
+                                                private_key);
+
+    if (*decrypted_output_length < 0) {
+        if (NULL == *decrypted_output) {
+            free(dptr);
+        }
+        return *decrypted_output_length;
+    }
+    *decrypted_output = dptr;
+    return 0;
+}
+
+int ccn_decrypt(const unsigned char *key,
+                const unsigned char *iv,
+                const unsigned char *ciphertext, 
+                size_t ciphertext_length,
+                unsigned char **plaintext, 
+                size_t *plaintext_length, 
+                size_t plaintext_padding) {
+
+    EVP_CIPHER_CTX ctx;
+    unsigned char *pptr = *plaintext;
+    const unsigned char *dptr = NULL;
+    size_t plaintext_buf_len = ciphertext_length + plaintext_padding;
+    size_t decrypt_len = 0;
+
+    if ((NULL == ciphertext) || (NULL == plaintext_length) || (NULL == key) || (NULL == plaintext))
+        return EINVAL;
+
+    if (NULL == iv) {
+        plaintext_buf_len -= AES_BLOCK_SIZE;
+    }
+
+    if ((NULL != *plaintext) && (*plaintext_length < plaintext_buf_len))
+        return ENOBUFS;
+
+    if (NULL == pptr) {
+        pptr = calloc(1, plaintext_buf_len);
+        if (NULL == pptr)
+            return ENOMEM;
+    }
+
+    if (NULL == iv) {
+        iv = ciphertext;
+        dptr = ciphertext + AES_BLOCK_SIZE;
+        ciphertext_length -= AES_BLOCK_SIZE;
+    } else {
+        dptr = ciphertext;
+    }
+
+    /*
+      print_block("ccn_decrypt: key:", key, AES_BLOCK_SIZE);
+      print_block("ccn_decrypt: iv:", iv, AES_BLOCK_SIZE);
+      print_block("ccn_decrypt: ciphertext:", dptr, ciphertext_length);
+    */
+    if (1 != EVP_DecryptInit(&ctx, EVP_aes_128_cbc(),
+                             key, iv)) {
+        if (NULL == *plaintext)
+            free(pptr);
+        return -128;
+    }
+
+    if (1 != EVP_DecryptUpdate(&ctx, pptr, (int *)&decrypt_len, dptr, ciphertext_length)) {
+        if (NULL == *plaintext)
+            free(pptr);
+        return -127;
+    }
+    *plaintext_length = decrypt_len + plaintext_padding;
+    if (1 != EVP_DecryptFinal(&ctx, pptr+decrypt_len, (int *)&decrypt_len)) {
+        if (NULL == *plaintext)
+            free(pptr);
+        return -126;
+    }
+    *plaintext_length += decrypt_len;
+    *plaintext = pptr;
+    /* this is supposed to happen automatically, but sometimes we seem to be running over the end... */
+    memset(*plaintext + *plaintext_length - plaintext_padding, 0, plaintext_padding);
+    return 0;
+}
+
+int ccn_encrypt(const unsigned char *key,
+                const unsigned char *iv,
+                const unsigned char *plaintext, 
+                size_t plaintext_length,
+                unsigned char **ciphertext, 
+                size_t *ciphertext_length,
+                size_t ciphertext_padding) {
+    EVP_CIPHER_CTX ctx;
+    unsigned char *cptr = *ciphertext;
+    unsigned char *eptr = NULL;
+    /* maximum length of ciphertext plus user-requested extra */
+    size_t ciphertext_buf_len = plaintext_length + AES_BLOCK_SIZE-1 + ciphertext_padding;
+    size_t encrypt_len = 0;
+    size_t alloc_buf_len = ciphertext_buf_len;
+    size_t alloc_iv_len = 0;
+
+    if ((NULL == ciphertext) || (NULL == ciphertext_length) || (NULL == key) || (NULL == plaintext))
+        return EINVAL;
+
+    if (NULL == iv) {
+        alloc_buf_len += AES_BLOCK_SIZE;
+    }
+
+    if ((NULL != *ciphertext) && (*ciphertext_length < alloc_buf_len))
+        return ENOBUFS;
+
+    if (NULL == cptr) {
+        cptr = calloc(1, alloc_buf_len);
+        if (NULL == cptr)
+            return ENOMEM;
+    }
+    *ciphertext_length = 0;
+
+    if (NULL == iv) {
+        iv = cptr;
+        eptr = cptr + AES_BLOCK_SIZE; /* put iv at start of block */
+
+        if (1 != RAND_bytes((unsigned char *)iv, AES_BLOCK_SIZE)) {
+            if (NULL == *ciphertext)
+                free(cptr);
+            return -1;
+        }
+
+        alloc_iv_len = AES_BLOCK_SIZE;
+        fprintf(stderr, "ccn_encrypt: Generated IV\n");
+    } else {
+        eptr = cptr;
+    }
+
+    if (1 != EVP_EncryptInit(&ctx, EVP_aes_128_cbc(),
+                             key, iv)) {
+        if (NULL == *ciphertext)
+            free(cptr);
+        return -128;
+    }
+
+    if (1 != EVP_EncryptUpdate(&ctx, eptr, (int *)&encrypt_len, plaintext, plaintext_length)) {
+        if (NULL == *ciphertext)
+            free(cptr);
+        return -127;
+    }
+    *ciphertext_length += encrypt_len;
+
+    if (1 != EVP_EncryptFinal(&ctx, eptr+encrypt_len, (int *)&encrypt_len)) {
+        if (NULL == *ciphertext)
+            free(cptr);
+        return -126;
+    }
+
+    /* don't include padding length in ciphertext length, caller knows its there. */
+    *ciphertext_length += encrypt_len;
+    *ciphertext = cptr;							   
+
+    /*
+      print_block("ccn_encrypt: key:", key, AES_BLOCK_SIZE);
+      print_block("ccn_encrypt: iv:", iv, AES_BLOCK_SIZE);
+      print_block("ccn_encrypt: ciphertext:", eptr, *ciphertext_length);
+    */
+    /* now add in any generated iv */
+    *ciphertext_length += alloc_iv_len;
+    return 0;
+}
+
+int ccn_add_mac(const unsigned char *key,
+                size_t key_length,
+                const unsigned char *message,
+                size_t message_length,
+                unsigned char *mac) {
+
+
+    size_t outbuf_len = ccn_mac_length();
+
+    HMAC(EVP_sha1(), key, key_length, message, message_length,
+         mac, &outbuf_len);
+
+    return 0;
+}
+
+int ccn_verify_mac(const unsigned char *key,
+                   size_t key_length,
+                   const unsigned char *message,
+                   size_t message_length,
+                   const unsigned char *mac) {
+
+    unsigned char mac_buffer[2*AES_BLOCK_SIZE];
+
+    ccn_add_mac(key, key_length, message, message_length, &mac_buffer[0]);
+
+    return memcmp(&mac_buffer[0], mac, ccn_mac_length());
+}
+				
 
 #endif /* _utils_h_ */

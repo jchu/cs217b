@@ -223,6 +223,17 @@ remote_connect(int argc, char** argv) {
     } else {
         // Cannot retrieve server's public key
         message_on_no_pubkey(sys->ccn,server_location);
+        exit(-1);
+    }
+
+    char * secret = "this is a secret message";
+    unsigned char *init_block = NULL;
+    size_t init_block_length = 0
+    retvalue = ccn_pubkey_encrypt(server_pkey,
+            secret,strlen(secret),
+            &init_block,&init_block_length);
+    if ( retvalue < 0 ) {
+        message_on_encrypt_failure(sys->ccn,secret);
     }
 
     // Build interest
