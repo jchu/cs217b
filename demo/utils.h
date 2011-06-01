@@ -246,146 +246,171 @@ ccn_publish_key(struct ccn* ccn, struct ccn_keystore *cached_keystore, const cha
 
 int ccn_pubkey_encrypt(struct ccn_pkey *public_key,
                        unsigned char *data, size_t data_length,
+                       unsigned char **ekey, size_t *eklen,
                        unsigned char **encrypted_output,
                        size_t *encrypted_output_length) {
 
-    int openssl_result = 0;
+    fprintf(stderr,"Encrypting...\n");
+    int result = 0;
 
     EVP_CIPHER_CTX ctx;
     EVP_PKEY *pkey = (EVP_PKEY*)public_key;
 
     unsigned char *ek = NULL;
-    int eklen;
-
+    int ekeylen;
     unsigned char iv[EVP_MAX_IV_LENGTH];
-    unsigned char *eptr = NULL;
+
+    unsigned char *encrypted = NULL;
+
+    memset(iv,0,sizeof(iv));
 
     int len_out;
-    int data_len = data_length;
 
-    if ((NULL == data) || (0 == data_length) || (NULL == public_key))
+    // Sanitization
+    if( (data == NULL) || (data_length == 0) || (public_key == NULL) )
         return EINVAL;
 
-    if ((NULL == encrypted_output)|| (NULL == encrypted_output_length) ||
-        ((NULL != *encrypted_output) && (*encrypted_output_length < ccn_pubkey_size(public_key))))
+    if( (encrypted_output == NULL) || (encrypted_output_length == NULL) ||
+        ( (*encrypted_output != NULL) && (*encrypted_output_length < ccn_pubkey_size(public_key)) ) )
         return ENOBUFS;
 
-    EVP_CIPHER_CTX_init(&ctx);
+    //EVP_CIPHER_CTX_init(&ctx);
+    
+    // Initialize symmetric encryption key
     ek = (unsigned char*)malloc(ccn_pubkey_size(public_key));
+    if( !ek )
+        return ENOMEM;
 
-    openssl_result = EVP_SealInit(&ctx, EVP_aes_128_cbc(), &ek, &eklen, iv, &pkey, 1);
+    result = EVP_SealInit(&ctx,
+            EVP_aes_128_cbc(),
+            &ek,
+            &ekeylen,
+            iv,
+            &pkey,
+            1);
 
-    if (openssl_result == 0) {
+    if( result == 0 ) {
         fprintf(stderr, "EVP_SealInit: failed.\n");
-        return openssl_result;
+        return result;
     }
 
-    if (NULL != *encrypted_output)
-        eptr = *encrypted_output;
+    *eklen = ekeylen;
+    *ekey = ek;
+
+    // Encrypt
+
+    if (*encrypted_output != NULL)
+        encrypted = *encrypted_output;
     else {
-        eptr = (unsigned char *)malloc(*ek);
-        if (NULL == eptr)
+        encrypted = (unsigned char *)malloc(EVP_CIPHER_block_size(EVP_aes_128_cbc()));
+        if (NULL == encrypted)
             return ENOMEM;
     }
 
-    memset(eptr, 0, *encrypted_output_length);
+    memset(encrypted, 0, *encrypted_output_length);
 
-    openssl_result = EVP_SealUpdate(&ctx, eptr, &len_out, data, data_length);
+    result = EVP_SealUpdate(&ctx,
+            encrypted,
+            &len_out,
+            data,
+            data_length);
 
-    if (openssl_result == 0) {
+    if( result == 0 ) {
         fprintf(stderr, "EVP_SealUpdate: failed.\n");
-        if (NULL == *encrypted_output) {
-            free(eptr);
-        }
-        return openssl_result;
+        if (*encrypted_output == NULL)
+            free(encrypted);
+        return result;
     }
 
-    openssl_result = EVP_SealFinal(&ctx, eptr, &len_out);
+    result = EVP_SealFinal(&ctx, encrypted, &len_out);
 
-    if (openssl_result == 0) {
+    if( result == 0 ) {
         fprintf(stderr, "EVP_SealFinal: failed.\n");
-        if (NULL == *encrypted_output) {
-            free(eptr);
-        }
-        return openssl_result;
+        if (*encrypted_output == NULL)
+            free(encrypted);
+        return result;
     }
 
-    *encrypted_output = eptr;
+    *encrypted_output = encrypted;
     *encrypted_output_length = len_out;
     return 0;
 }
 
 static int ccn_privkey_decrypt(
                                EVP_PKEY *private_key,
+                               const unsigned char *keytext, size_t keytext_length,
                                const unsigned char *ciphertext, size_t ciphertext_length,
                                unsigned char **decrypted_output,
                                size_t *decrypted_output_length) {
 
-    int openssl_result = 0;
+    fprintf(stderr,"Decrypting...\n");
+    int result = 0;
 
     EVP_CIPHER_CTX ctx;
     EVP_PKEY *pkey = (EVP_PKEY*)private_key;
 
-    unsigned char *ek = NULL;
-    int eklen;
-
     unsigned char iv[EVP_MAX_IV_LENGTH];
-    unsigned char *eptr = NULL;
+    memset(iv,0,sizeof(iv));
 
     int len_out;
-    int data_len = ciphertext_length;
 
-    unsigned char *dptr = NULL;
+    unsigned char *decrypted = NULL;
 
-    if ((NULL == ciphertext) || (0 == ciphertext_length) || (NULL == private_key))
+    // Sanitization
+    if( (ciphertext == NULL) || (ciphertext_length == 0) || ( private_key == NULL) || (keytext == NULL) || (keytext_length == 0) )
         return EINVAL;
 
-    if ((NULL == decrypted_output)|| (NULL == decrypted_output_length) ||
-        ((NULL != *decrypted_output) && (*decrypted_output_length < EVP_PKEY_size(private_key))))
+    if( (decrypted_output == NULL) || (decrypted_output_length == NULL) ||
+        ( (*decrypted_output != NULL) && (*decrypted_output_length < EVP_PKEY_size(private_key)) ) )
         return ENOBUFS;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    ek = (unsigned char*)malloc(EVP_PKEY_size(private_key));
+    //EVP_CIPHER_CTX_init(&ctx);
+    result = EVP_OpenInit(&ctx,
+            EVP_aes_128_cbc(),
+            keytext,
+            keytext_length,
+            iv,
+            pkey);
 
-    openssl_result = EVP_OpenInit(&ctx,EVP_aes_128_cbc(), &ek, &eklen, iv, *pkey);
-
-    if( openssl_result == 0 ) {
+    if( result == 0 ) {
         fprintf(stderr, "EVP_OpenInit: failed.\n");
-        return openssl_result;
+        return result;
     }
 
-    if (NULL != *decrypted_output)
-        dptr = *decrypted_output;
+    if (*decrypted_output != NULL)
+        decrypted = *decrypted_output;
     else {
-        dptr = (unsigned char *)malloc(*ek);
-        if (NULL == dptr)
+        decrypted = (unsigned char *)malloc(sizeof(char) * keytext_length);
+        if (decrypted == NULL)
             return ENOMEM;
     }
 
-    memset(dptr, 0, *decrypted_output_length);
+    memset(decrypted, 0, *decrypted_output_length);
 
-    openssl_result = EVP_OpenUpdate(&ctx, dptr, &len_out, ciphertex, ciphertex_length);
+    result = EVP_OpenUpdate(&ctx,
+            decrypted,
+            &len_out,
+            ciphertext,
+            ciphertext_length);
 
-    if( openssl_result == 0 ) {
+    if( result == 0 ) {
         fprintf(stderr, "EVP_OpenUpdate: failed. \n");
-        if ( NULL == *decrypted_output ) {
-            free(dptr);
-        }
-        return openssl_result;
+        if ( *decrypted_output == NULL )
+            free(decrypted);
+        return result;
     }
 
-    openssl_result = EVP_OpenFinal(&ctx, dptr, &len_out);
+    result = EVP_OpenFinal(&ctx, decrypted, &len_out);
 
-    if( openssl_result == 0 ) {
+    if( result == 0 ) {
         fprintf(stderr, "EVP_OpenFinal: failed. \n");
-        if ( NULL == *decrypted_output ) {
-            free(dptr);
-        }
-        return openssl_result;
+        if (*decrypted_output == NULL )
+            free(decrypted);
+        return result;
     }
 
 
-    *decrypted_output = dptr;
+    *decrypted_output = decrypted;
     *decrypted_output_length = len_out;
     return 0;
 }

@@ -106,19 +106,28 @@ handleNewClient(struct ccn_closure *selfp,
         // TODO: Handle encrypted init
         const unsigned char *encrypted_init = NULL;
         size_t encrypted_init_length = 0;
+        const unsigned char *encrypted_key = NULL;
+        size_t encrypted_key_length = 0;
         unsigned char *decrypted_init = NULL;
         size_t decrypted_init_length = 0;
         unsigned char *key_buffer = NULL;
         size_t key_len = 0;
 
         result = ccn_name_comp_get(info->interest_ccnb,info->interest_comps,
-                6, &encrypted_init, &encrypted_init_length);
+                6, &encrypted_key, &encrypted_key_length);
+        if( result < 0 ) {
+            fprintf(stderr,"Missing encrypted key message");
+            return CCN_UPCALL_RESULT_ERR;
+        }
+        result = ccn_name_comp_get(info->interest_ccnb,info->interest_comps,
+                7, &encrypted_init, &encrypted_init_length);
         if( result < 0 ) {
             fprintf(stderr,"Missing encrypted init message");
             return CCN_UPCALL_RESULT_ERR;
         }
 
         result = ccn_privkey_decrypt( (EVP_PKEY *)get_my_private_key(cached_keystore),
+            encrypted_key, encrypted_key_length,
             encrypted_init, encrypted_init_length,
             &decrypted_init, &decrypted_init_length);
         if( result < 0 ) {
