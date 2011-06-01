@@ -18,16 +18,16 @@
 #include <ccn/signing.h>
 
 static struct ccn_keystore *
-init_keystore();
+ccn_init_keystore();
 
 static const struct ccn_pkey *
-get_my_private_key(struct ccn_keystore *cached_keystore);
+ccn_get_my_private_key(struct ccn_keystore *cached_keystore);
 
 static const struct ccn_pkey *
-get_my_public_key(struct ccn_keystore *cached_keystore);
+ccn_get_my_public_key(struct ccn_keystore *cached_keystore);
 
 int
-get_public_key(struct ccn* ccn, const char *host, struct ccn_pkey **pkeyp);
+ccn_get_public_key(struct ccn* ccn, const char *host, struct ccn_pkey **pkeyp);
 
 static int
 ccn_create_keylocator(struct ccn_charbuf *c, const struct ccn_pkey *k);

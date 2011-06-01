@@ -15,7 +15,7 @@
 #include <ccn/signing.h>
 
 static struct ccn_keystore *
-init_keystore()
+ccn_init_keystore()
 {
     struct ccn_keystore *keystore = NULL;
     int res;
@@ -34,14 +34,14 @@ init_keystore()
 }
 
 static const struct ccn_pkey *
-get_my_private_key(struct ccn_keystore *cached_keystore)
+ccn_get_my_private_key(struct ccn_keystore *cached_keystore)
 {
     if (cached_keystore == NULL) exit(1);
     return (ccn_keystore_private_key(cached_keystore));
 }
 
 static const struct ccn_pkey *
-get_my_public_key(struct ccn_keystore *cached_keystore)
+ccn_get_my_public_key(struct ccn_keystore *cached_keystore)
 {
     if (cached_keystore == NULL) exit(1);
     return (ccn_keystore_public_key(cached_keystore));
@@ -49,7 +49,7 @@ get_my_public_key(struct ccn_keystore *cached_keystore)
 
 /* pkeyp result of get_public_key must be ccn_pubkey_free'd by caller */
 int
-get_public_key(struct ccn* ccn, const char *host, struct ccn_pkey **pkeyp)
+ccn_get_public_key(struct ccn* ccn, const char *host, struct ccn_pkey **pkeyp)
 {
     struct ccn_charbuf *name = ccn_charbuf_create();
     int res = 0;
