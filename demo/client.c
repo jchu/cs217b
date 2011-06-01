@@ -177,14 +177,12 @@ setup(int argc, char** argv) {
     
     // Publish client key
     cached_keystore = init_keystore();
-    /*
     if( ccn_publish_key(sys->ccn,cached_keystore,client_location) != 0 ) {
         message_on_publish_key_failure(sys->ccn);
         exit(-1);
     } else {
         fprintf(stderr, "Successfully published SSH key to CCN.\n");
     }
-    */
 }
 
 /*
@@ -219,7 +217,6 @@ remote_connect(int argc, char** argv) {
 
     // Init message
     // See voccn - eXtl_ccn.c:738
-    /*
     struct ccn_pkey *server_pkey = NULL;
     if( get_public_key(sys->ccn,server_location,&server_pkey) == 0 ) {
         fprintf(stderr, "ENCRYPT INIT: retrieved public key for %s.\n",server_location);
@@ -227,38 +224,22 @@ remote_connect(int argc, char** argv) {
         // Cannot retrieve server's public key
         message_on_no_pubkey(sys->ccn,server_location);
         exit(-1);
-        a
     }
-    */
+    
     char * secret = "this is a secret message";
     unsigned char *init_block = NULL;
     size_t init_block_length = 0;
     unsigned char *key_block = NULL;
     size_t key_block_length = 0;
-    //retvalue = ccn_pubkey_encrypt(server_pkey,
-    retvalue = ccn_pubkey_encrypt(
-            (EVP_PKEY *)get_my_public_key(cached_keystore),
+    retvalue = ccn_pubkey_encrypt(server_pkey,
             (unsigned char*)secret,strlen(secret),
-            &key_block,&key_block_length,
             &init_block,&init_block_length);
     if ( retvalue < 0 ) {
         message_on_encrypt_failure(sys->ccn,secret);
     }
 
-    ccn_name_append(server_name,(char*)key_block,key_block_length);
     ccn_name_append(server_name,(char*)init_block,init_block_length);
 
-    unsigned char *decrypted_init = NULL;
-    size_t decrypted_init_length = 0;
-
-    ccn_privkey_decrypt(
-            (EVP_PKEY *)get_my_private_key(cached_keystore),
-            key_block,key_block_length,
-            init_block,init_block_length,
-            &decrypted_init, &decrypted_init_length);
-    printf("init message: %s\n",decrypted_init);
-
-    exit(-1);
 
     // Build interest
     templ = make_interest_template(header,NULL);

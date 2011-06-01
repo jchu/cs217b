@@ -1,16 +1,33 @@
-CFLAGS=-g -Wall -O0
-LDLIBS = -lcrypto
 
-PROGRAMS = crypttest
 
-CSRC = crypttest.c
+CFLAGS=-g -Wall
+CCNINCDIR = /home/milki/git/ccnx/include/ccn
+CCNLIBDIR = /home/milki/git/ccnx/csrc/lib
+LDLIBS = -L$(CCNLIBDIR) -lccn -lcrypto
+
+PROGRAMS = server client
+
+CSRC = server.c client.c
 
 default all: $(PROGRAMS)
 
-crypttest: loadkeys.o crypttest.o
-	$(CC) $(CFLAGS) -o $@ crypttest.o loadkeys.o $(LDLIBS)
+$(PROGRAMS): $(CCNLIBDIR)/libccn.a
 
-crypttest.o: loadkeys.h
+client: client.o
+	$(CC) $(CFLAGS) -o $@ client.o $(LDLIBS)
+
+server: server.o
+	$(CC) $(CFLAGS) -o $@ server.o $(LDLIBS)
+
+server.o: $(CCNINCDIR)/ccn.h $(CCNINCDIR)/charbuf.h \
+	$(CCNINCDIR)/uri.h $(CCNINCDIR)/header.h \
+	$(CCNINCDIR)/keystore.h $(CCNINCDIR)/signing.h \
+	messages.h utils.h
+
+server.o: $(CCNINCDIR)/ccn.h $(CCNINCDIR)/charbuf.h \
+	$(CCNINCDIR)/uri.h $(CCNINCDIR)/header.h \
+	$(CCNINCDIR)/keystore.h $(CCNINCDIR)/signing.h \
+	messages.h utils.h
 
 clean:
-	rm $(PROGRAMS) crypttest.o loadkeys.o
+	rm $(PROGRAMS) server.o client.o
