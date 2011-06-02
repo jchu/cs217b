@@ -32,6 +32,7 @@ struct ccn_sys_t {
     struct ccn_closure *newClient;
     struct ccn_closure *existingClient;
     struct ccn_charbuf *mountpoint;
+    char *server_domain;
     struct ccn_charbuf *interest_template;
 };
 
@@ -40,10 +41,20 @@ handleNewClient(struct ccn_closure *selfp,
         enum ccn_upcall_kind kind,
         struct ccn_upcall_info *info);
 
+enum ccn_upcall_res
+handleClient(struct ccn_closure *selfp,
+        enum ccn_upcall_kind kind,
+        struct ccn_upcall_info *info);
+
+
 typedef struct ccn_sys_t *ccn_sys;
 
 static struct ccn_closure newClientAction = {
     .p = &handleNewClient
+};
+
+static struct ccn_closure clientAction = {
+    .p = &handleClient
 };
 
 struct interest_header_t {};
@@ -153,9 +164,6 @@ handleNewClient(struct ccn_closure *selfp,
         print_ccnb_charbuf(return_client_path);
         ccn_express_interest(sys->ccn,return_client_path, &newClientAction, templ);
 
-
-
-
         // TODO: Handle encrypted init
         const unsigned char *encrypted_init = NULL;
         size_t encrypted_init_length = 0;
@@ -205,16 +213,46 @@ handleNewClient(struct ccn_closure *selfp,
                 NULL);
         if( result < 0 ) {
             printf("failed to create signed info (res == %d)\n",result);
+            exit(result);
         }
 
-        // TODO: forked process send new interest to initiate user authentication?
+        // Publish a new mountpoint for the client
+        struct ccn_charbuf *client_mountpoint;
+        char * client_mountid_str;
+        int client_mountid = rand();
+
+        client_mountpoint = ccn_charbuf_create();
+
+        client_mountid_str = malloc(sizeof(char) * 8);
+        sprintf(client_mountid_str,"%8d",client_mountid);
+
+        result = ccn_name_from_uri(client_mountpoint,sys->server_domain);
+        ccn_name_append_str(client_mountpoint,"ssh");
+        ccn_name_append_str(client_mountpoint,client_mountid_str);
+
+        printf("new client mountpoint: ");
+        print_ccnb_charbuf(client_mountpoint);
+        result = ccn_set_interest_filter(sys->ccn,client_mountpoint,&clientAction);
+        if( result < 0 ) {
+            fprintf(stderr,"failed to set new mountpoint for client");
+            exit(result);
+        }
+
+        char *client_mountpoint_str;
+        size_t client_mountpoint_str_len = sizeof(char) * (strlen(sys->server_domain) + strlen("/ssh/") + strlen(client_mountid_str));
+        client_mountpoint_str = malloc(client_mountpoint_str_len);
+        memset(client_mountpoint_str,NULL,client_mountpoint_str_len);
+        strcat(client_mountpoint_str,sys->server_domain);
+        strcat(client_mountpoint_str,"/ssh/");
+        strcat(client_mountpoint_str,client_mountid_str);
+
         content = ccn_charbuf_create();
 
         ccn_encode_ContentObject(
                 content,
                 client_path,
                 signed_info,
-                "SSH-2.0-NDN",12,
+                client_mountpoint_str,strlen(client_mountpoint_str),
                 NULL, get_my_private_key(cached_keystore));
         printf("CCN PUT CONTENT to client:\n");
         print_ccnb_charbuf(client_path);
@@ -239,6 +277,63 @@ handleNewClient(struct ccn_closure *selfp,
     }
 
     return CCN_UPCALL_RESULT_OK;
+}
+
+enum ccn_upcall_res
+handleClient(struct ccn_closure *selfp,
+        enum ccn_upcall_kind kind,
+        struct ccn_upcall_info *info) {
+    int result;
+
+    printf("Got interest matching %d components, kind = %d\n", info->matched_comps, kind);
+    printf("Interest from:\n");
+    print_ccnb_name(info);
+
+    // Sanity check
+    switch (kind) {
+        case CCN_UPCALL_INTEREST:
+            // This is an interest
+            break;
+        default:
+            // Only deal with interest
+            return CCN_UPCALL_RESULT_ERR;
+    }
+
+    struct ccn_charbuf *client_path = ccn_charbuf_create();
+    ccn_name_init(client_path);
+    ccn_name_append_components(client_path, info->interest_ccnb,
+            info->interest_comps->buf[0], info->interest_comps->buf[3]);
+
+    // Respond with SSH version number
+    struct ccn_charbuf *signed_info, *content;
+    signed_info = ccn_charbuf_create();
+    result = ccn_signed_info_create(signed_info,
+            get_my_publisher_key_id(cached_keystore),
+            get_my_publisher_key_id_length(cached_keystore),
+            NULL,
+            CCN_CONTENT_DATA,
+            -1,
+            NULL,
+            NULL);
+    if( result < 0 ) {
+        printf("failed to create signed info (res == %d)\n",result);
+        exit(result);
+    }
+
+    content = ccn_charbuf_create();
+    ccn_encode_ContentObject(
+            content,
+            client_path,
+            signed_info,
+            "SSH-2.0-CCN",strlen("SSH-2.0-CCN"),
+            NULL, get_my_private_key(cached_keystore));
+    printf("CCN PUT CONTENT to client:\n");
+    print_ccnb_charbuf(client_path);
+    result = ccn_put(info->h, content->buf, content->length);
+    ccn_charbuf_destroy(&client_path);
+    ccn_charbuf_destroy(&content);
+
+    return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
 }
 
 struct ccn_charbuf *
@@ -280,6 +375,9 @@ setup(int argc, char** argv) {
     }
 
     char* location = argv[1];
+    sys->server_domain = malloc(sizeof(char) * strlen(location));
+    sys->server_domain = strdup(location);
+
     retvalue = ccn_name_from_uri(sys->mountpoint,location);
     if( retvalue < 0 ) {
         message_on_name_failure(sys->ccn,"server mountpoint");

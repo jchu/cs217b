@@ -43,8 +43,20 @@ static struct ccn_closure serverAction = {
     .p = &handleServer
 };
 
+enum ccn_upcall_res
+handleServerVers(struct ccn_closure *selfp,
+        enum ccn_upcall_kind kind,
+        struct ccn_upcall_info *info);
+
+static struct ccn_closure serverVersAction = {
+    .p = &handleServerVers
+};
+
+
 struct interest_header_t {
 };
+struct ccn_charbuf *
+make_interest_template();
 
 typedef struct ccn_sys_t *ccn_sys;
 
@@ -72,12 +84,13 @@ handleServer(struct ccn_closure *selfp,
     size_t ccnb_size = 0;
     const unsigned char *data = NULL;
     size_t data_size = 0;
-    size_t written = 0;
     const unsigned char *ib = NULL;
     struct ccn_indexbuf *ic = NULL;
     int retvalue;
 
     printf("Got interest matching %d components, kind = %d\n", info->matched_comps, kind);
+    printf("Interest to:\n");
+    print_ccnb_name(info);
 
     // Sanity check
     switch (kind) {
@@ -117,6 +130,83 @@ handleServer(struct ccn_closure *selfp,
     // Interpret content
     printf("RECV CCN MESSAGE CONTENT \n%s %d\n", (char *)data,data_size);
 
+    // Ask for version string
+    struct ccn_charbuf *server_path = ccn_charbuf_create();
+    retvalue = ccn_name_from_uri(server_path,(char *)data);
+    if( retvalue < 0 ) {
+        fprintf(stderr,"Could not parse server uri");
+        exit(retvalue);
+    }
+    struct ccn_charbuf *templ = NULL;
+    struct interest_header_t *header = NULL;
+
+    templ = make_interest_template(header,NULL);
+
+    printf("CCN SEND VERSION REQ\n");
+    
+    ccn_express_interest(sys->ccn, server_path, &serverVersAction, templ);
+    printf("Sent init message to server:\n");
+    print_ccnb_charbuf(server_path);
+
+
+    return CCN_UPCALL_RESULT_OK;
+}
+enum ccn_upcall_res
+handleServerVers(struct ccn_closure *selfp,
+        enum ccn_upcall_kind kind,
+        struct ccn_upcall_info *info) {
+    struct ccn_charbuf *name = NULL;
+    struct ccn_charbuf *temp1 = NULL;
+    const unsigned char *ccnb = NULL;
+    size_t ccnb_size = 0;
+    const unsigned char *data = NULL;
+    size_t data_size = 0;
+    const unsigned char *ib = NULL;
+    struct ccn_indexbuf *ic = NULL;
+    int retvalue;
+
+    printf("Got interest matching %d components, kind = %d\n", info->matched_comps, kind);
+    printf("Interest to:\n");
+    print_ccnb_name(info);
+
+    // Sanity check
+    switch (kind) {
+        case CCN_UPCALL_FINAL:
+            // No more chunks
+            return CCN_UPCALL_RESULT_OK;
+        case CCN_UPCALL_INTEREST:
+            printf("Got interest");
+            return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
+        case CCN_UPCALL_INTEREST_TIMED_OUT:
+            // Daemon notified server timed out. Reexpress interest
+            return CCN_UPCALL_RESULT_REEXPRESS;
+        case CCN_UPCALL_CONTENT_UNVERIFIED:
+            // Requires verification?
+            printf("Got unverified content\n");
+            //return CCN_UPCALL_RESULT_VERIFY;
+            break;
+        case CCN_UPCALL_CONTENT:
+            printf("Got content\n");
+            //return CCN_UPCALL_RESULT_OK;
+            break;
+        default:
+            return CCN_UPCALL_RESULT_ERR;
+    }
+
+    // Localize content
+    ccnb = info->content_ccnb;
+    ccnb_size = info->pco->offset[CCN_PCO_E];
+    ib = info->interest_ccnb;
+    ic = info->interest_comps;
+    retvalue = ccn_content_get_value(ccnb, ccnb_size, info->pco, &data, &data_size);
+    if (retvalue < 0 ) {
+        message_on_new_client(sys->ccn);
+        exit(retvalue);
+    }
+
+    // Interpret content
+    printf("RECV CCN MESSAGE CONTENT \n%s %d\n", (char *)data,data_size);
+    exit(0);
     return CCN_UPCALL_RESULT_OK;
 }
 
@@ -240,8 +330,6 @@ remote_connect(int argc, char** argv) {
     char * secret = "this is a secret message";
     unsigned char *init_block = NULL;
     size_t init_block_length = 0;
-    unsigned char *key_block = NULL;
-    size_t key_block_length = 0;
     retvalue = ccn_pubkey_encrypt(server_pkey,
             (unsigned char*)secret,strlen(secret),
             &init_block,&init_block_length);
