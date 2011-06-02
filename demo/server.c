@@ -46,6 +46,10 @@ static struct ccn_closure newClientAction = {
     .p = &handleNewClient
 };
 
+struct interest_header_t {};
+struct ccn_charbuf *
+make_interest_template();
+
 /******************************
  * Local Declaraions
  *****************************/
@@ -102,6 +106,55 @@ handleNewClient(struct ccn_closure *selfp,
 
         printf("Interest from:\n");
         print_ccnb_name(info);
+
+        // Build client mountpoint
+        const unsigned char *client_domain = NULL;
+        size_t client_domain_length = 0;
+        const unsigned char *client_mount = NULL;
+        size_t client_mount_length = 0;
+        const unsigned char *client_id = NULL;
+        size_t client_id_length = 0;
+
+        result = ccn_name_comp_get(info->interest_ccnb,info->interest_comps,
+                3, &client_domain, &client_domain_length);
+        if( result < 0 ) {
+            fprintf(stderr,"Missing encrypted init message");
+            return CCN_UPCALL_RESULT_ERR;
+        }
+        result = ccn_name_comp_get(info->interest_ccnb,info->interest_comps,
+                4, &client_mount, &client_mount_length);
+        if( result < 0 ) {
+            fprintf(stderr,"Missing encrypted init message");
+            return CCN_UPCALL_RESULT_ERR;
+        }
+        result = ccn_name_comp_get(info->interest_ccnb,info->interest_comps,
+                5, &client_id, &client_id_length);
+        if( result < 0 ) {
+            fprintf(stderr,"Missing encrypted init message");
+            return CCN_UPCALL_RESULT_ERR;
+        }
+
+        struct ccn_charbuf *return_client_path;
+        struct ccn_charbuf *templ;
+        struct interest_header_t *header = NULL;
+
+        return_client_path = ccn_charbuf_create();
+        result = ccn_name_from_uri(return_client_path,(const char*)client_domain);
+        if( result < 0 ) {
+            message_on_name_failure(sys->ccn,"client name");
+            exit(result);
+        }
+        ccn_name_append_str(return_client_path,(const char*)client_mount);
+        ccn_name_append_str(return_client_path,(const char*)client_id);
+
+        templ = make_interest_template(header,NULL);
+
+        printf("CCN SEND NEXT\n");
+        print_ccnb_charbuf(return_client_path);
+        ccn_express_interest(sys->ccn,return_client_path, &newClientAction, templ);
+
+
+
 
         // TODO: Handle encrypted init
         const unsigned char *encrypted_init = NULL;
@@ -186,6 +239,23 @@ handleNewClient(struct ccn_closure *selfp,
     }
 
     return CCN_UPCALL_RESULT_OK;
+}
+
+struct ccn_charbuf *
+make_interest_template()
+{
+    struct ccn_charbuf *templ = ccn_charbuf_create();
+    ccn_charbuf_append_tt(templ, CCN_DTAG_Interest, CCN_DTAG); /* <Interest> */
+    ccn_charbuf_append_tt(templ, CCN_DTAG_Name, CCN_DTAG); /* <Name> */
+    ccn_charbuf_append_closer(templ); /* </Name> */
+   
+    ccn_charbuf_append_tt(templ, CCN_DTAG_ChildSelector, CCN_DTAG);
+    ccnb_append_number(templ,1);
+    ccn_charbuf_append_closer(templ);
+
+
+    ccn_charbuf_append_closer(templ); /* </Interest> */
+    return templ;
 }
 
 void

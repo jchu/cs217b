@@ -84,6 +84,9 @@ handleServer(struct ccn_closure *selfp,
         case CCN_UPCALL_FINAL:
             // No more chunks
             return CCN_UPCALL_RESULT_OK;
+        case CCN_UPCALL_INTEREST:
+            printf("Got interest");
+            return CCN_UPCALL_RESULT_INTEREST_CONSUMED;
         case CCN_UPCALL_INTEREST_TIMED_OUT:
             // Daemon notified server timed out. Reexpress interest
             return CCN_UPCALL_RESULT_REEXPRESS;
@@ -163,7 +166,10 @@ setup(int argc, char** argv) {
     ccn_name_append_str(sys->mountpoint,"ssh");
 
     client_id = rand();
-    ccn_name_append_numeric(sys->mountpoint,CCN_MARKER_NONE,client_id);
+
+    char *client_id_str = malloc(sizeof(char) * 8);
+    sprintf(client_id_str,"%8d",client_id);
+    ccn_name_append_str(sys->mountpoint,client_id_str);
 
     sys->responseHandler = &serverAction;
     
@@ -173,7 +179,9 @@ setup(int argc, char** argv) {
         message_on_route_failure(sys->ccn);
         exit(retvalue);
     }
-    printf("Listening on %s/%s/%d\n",client_location,"ssh",client_id);
+    printf("Listening on: ");
+    print_ccnb_charbuf(sys->mountpoint);
+
     
     // Publish client key
     cached_keystore = init_keystore();
@@ -213,7 +221,10 @@ remote_connect(int argc, char** argv) {
     // Add return path and init message to server name
     ccn_name_append_str(server_name,client_location);
     ccn_name_append_str(server_name,"ssh");
-    ccn_name_append_numeric(server_name,CCN_MARKER_NONE,client_id);
+
+    char *client_id_str = malloc(sizeof(char) * 8);
+    sprintf(client_id_str,"%8d",client_id);
+    ccn_name_append_str(server_name,client_id_str);
 
     // Init message
     // See voccn - eXtl_ccn.c:738
